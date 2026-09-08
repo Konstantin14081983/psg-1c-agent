@@ -196,9 +196,10 @@ def parse_raw_text_application(raw_text: str) -> Dict[str, Any]:
         if line == app_title:
             continue
             
-        # Check if line indicates a program header
+        # Check if line indicates a program header (skip if line is a student record)
         line_lower = line.lower()
-        if any(kw in line_lower for kw in ['программа', 'направление', 'курс', 'обучение по', 'охрана труда']) and len(line.split()) < 25:
+        is_student_row = (',' in line and len(line.split(',')) >= 3) or ('\t' in line) or bool(re.search(r'\d{3}[\s\-]\d{3}[\s\-]\d{3}', line))
+        if not is_student_row and any(kw in line_lower for kw in ['программа', 'направление', 'курс', 'обучение по', 'охрана труда']) and len(line.split()) < 25:
             # Looks like a program header
             clean_prog = re.sub(r'^(программа|направление|курс)[:\s\-]*', '', line, flags=re.IGNORECASE).strip()
             if clean_prog:
@@ -237,8 +238,8 @@ def parse_raw_text_application(raw_text: str) -> Dict[str, Any]:
             # Check for SNILS
             if re.search(r'\d{3}[\s\-]\d{3}[\s\-]\d{3}[\s\-]\d{2}|\d{11}', p_clean):
                 snils = p_clean
-            # Check for Date
-            elif re.search(r'\b\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}\b', p_clean):
+            # Check for Date (numeric or verbal)
+            elif re.search(r'\b\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}\b|\b\d{1,2}\s+[а-яА-ЯёЁ]{3,12}\s+\d{4}', p_clean):
                 if not birth_date:
                     birth_date = p_clean
                 else:

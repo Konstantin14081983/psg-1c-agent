@@ -130,10 +130,54 @@ def test_image_and_multi_programs():
         if os.path.exists(img_path):
             os.remove(img_path)
 
+def test_verbal_birth_date():
+    import linguistics
+    import document_vision
+    import psg_agent
+    
+    # 1. Test linguistics normalize_date directly
+    res, ok, warn = linguistics.normalize_date("22 АВГУСТА 2005 ГОДА Г. НОВОСИБИРСК")
+    assert ok is True, f"Failed: {warn}"
+    assert res == "22.08.2005", f"Expected 22.08.2005, got {res}"
+    
+    # 2. Test document_vision SNILS card text parsing with verbal date & multiline FIO
+    ocr_text = """
+    СТРАХОВОЕ СВИДЕТЕЛЬСТВО
+    ОБЯЗАТЕЛЬНОГО ПЕНСИОННОГО СТРАХОВАНИЯ
+    071-884-230 76
+    СИДОРОВ
+    АЛЕКСЕЙ
+    ПЕТРОВИЧ
+    Дата и место рождения
+    22 АВГУСТА 2005 ГОДА Г. НОВОСИБИРСК
+    Пол МУЖСКОЙ
+    Дата регистрации 15.06.2010
+    """
+    parsed = document_vision.parse_snils_card_text(ocr_text)
+    assert parsed["snils"] == "071-884-230 76"
+    assert parsed["fio"] == "Сидоров Алексей Петрович"
+    assert parsed["birth_date"] == "22.08.2005", f"Expected 22.08.2005, got {parsed['birth_date']}"
+    assert parsed["gender"] == "М"
+    
+    # 3. Test full pipeline with verbal date
+    raw_text = """
+    1. Сидоров Алексей Петрович, 22 АВГУСТА 2005 ГОДА Г. НОВОСИБИРСК, 071-884-230 76, Электромонтажник, Охрана труда, 01.09.2026 - 15.09.2026
+    """
+    res_pipeline = psg_agent.process_application(
+        raw_text=raw_text,
+        output_file="output_1c/test_verbal.xlsx"
+    )
+    assert res_pipeline["unique_students"] == 1
+    stud = list(res_pipeline["grouped_data"].values())[0]["students"][0]
+    assert stud["birth_date"] == "22.08.2005"
+    assert "birth_date" not in stud["yellow_flags"]
+    print("✓ test_verbal_birth_date passed")
+
 if __name__ == "__main__":
     test_homepage()
     test_errors_sample_file()
     test_process_raw_text()
     test_image_and_multi_programs()
+    test_verbal_birth_date()
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")
 

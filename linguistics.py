@@ -127,13 +127,44 @@ def validate_and_format_snils(snils_input: Optional[str]) -> Tuple[str, bool, Op
     else:
         return formatted, False, f"Ошибка контрольной суммы СНИЛС (ожидалось {c:02d}, введено {check_part:02d})"
 
+MONTHS_RU = {
+    'янв': 1, 'фев': 2, 'мар': 3, 'апр': 4,
+    'мая': 5, 'май': 5,
+    'июн': 6, 'июл': 7,
+    'авг': 8, 'сен': 9, 'окт': 10, 'ноя': 11, 'дек': 12
+}
+
 def normalize_date(date_input: Optional[str]) -> Tuple[str, bool, Optional[str]]:
-    """Normalizes date to DD.MM.YYYY."""
+    """
+    Normalizes date to DD.MM.YYYY.
+    Supports both numeric (DD.MM.YYYY) and verbal Russian formats
+    (e.g. '22 АВГУСТА 2005 ГОДА Г. НОВОСИБИРСК', '22 августа 2005 г.').
+    """
     if not date_input:
         return "", False, "Дата отсутствует"
     
     cleaned = clean_text(date_input)
-    m = re.search(r'(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})', cleaned)
+    cleaned, _ = clean_homoglyphs(cleaned)
+    
+    # 1. Verbal Russian format: e.g. '22 АВГУСТА 2005 ГОДА Г. НОВОСИБИРСК'
+    m_verbal = re.search(r'\b(\d{1,2})\s+([а-яА-ЯёЁ]{3,12})\s+(\d{4})(?:\s*г(?:ода|\.)?)?\b', cleaned)
+    if m_verbal:
+        day = int(m_verbal.group(1))
+        month_str = m_verbal.group(2).lower()
+        year = int(m_verbal.group(3))
+        
+        month_num = None
+        for prefix, num in MONTHS_RU.items():
+            if month_str.startswith(prefix):
+                month_num = num
+                break
+                
+        if month_num and 1 <= day <= 31 and 1930 <= year <= 2035:
+            formatted = f"{day:02d}.{month_num:02d}.{year}"
+            return formatted, True, None
+
+    # 2. Numeric format: DD.MM.YYYY or DD/MM/YYYY or DD-MM-YYYY
+    m = re.search(r'\b(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})\b', cleaned)
     if m:
         day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
         if year < 100:

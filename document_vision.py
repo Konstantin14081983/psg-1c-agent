@@ -21,7 +21,18 @@ STOP_WORDS = {
     'пенсионный', 'фонд', 'россии', 'российской', 'федерации', 'дата', 'рождения',
     'место', 'пол', 'муж', 'жен', 'регистрации', 'паспорт', 'гражданина',
     'отделение', 'уфмс', 'мвд', 'россия', 'диплом', 'квалификация', 'специальность',
-    'снилс', 'номер', 'страховой', 'сфр', 'пфр', 'уведомление', 'форма'
+    'снилс', 'номер', 'страховой', 'сфр', 'пфр', 'уведомление', 'форма',
+    # Russian months and date markers
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа',
+    'сентября', 'октября', 'ноября', 'декабря',
+    'январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август',
+    'сентябрь', 'октябрь', 'ноябрь', 'декабрь',
+    'года', 'год', 'г.', 'г',
+    # Geographical terms
+    'город', 'гор', 'село', 'деревня', 'поселок', 'область', 'район', 'край',
+    'республика', 'новосибирск', 'москва', 'санкт-петербург',
+    # Document headers / markers
+    'выдан', 'код', 'подразделения', 'серия', 'личное', 'подпись'
 }
 
 def get_tesseract_binary() -> str:
@@ -143,6 +154,43 @@ def extract_fio_candidates(lines: List[str]) -> str:
 
     return ""
 
+def extract_birth_date(text: str) -> Optional[str]:
+    """
+    Extracts birth date from document text (SNILS, Passport, etc.).
+    Supports:
+    - Verbal Russian formats (e.g. '22 АВГУСТА 2005 ГОДА Г. НОВОСИБИРСК', '22 августа 2005 г.')
+    - Numeric formats (e.g. '22.08.2005', '22/08/2005', '22-08-2005')
+    Returns normalized DD.MM.YYYY string or None.
+    """
+    if not text:
+        return None
+        
+    clean_ocr, _ = linguistics.clean_homoglyphs(text)
+
+    # 1. Look specifically near keywords "рождения" / "дата рождения" / "дата и место рождения"
+    m_near = re.search(r'(?:рождени[яе]|дата\s+(?:и\s+место\s+)?рождения)[:\s]*\n?([^\n]{1,80})', clean_ocr, re.IGNORECASE)
+    if m_near:
+        target_chunk = m_near.group(1)
+        norm, ok, _ = linguistics.normalize_date(target_chunk)
+        if ok:
+            return norm
+
+    # 2. Verbal Russian format anywhere in text: e.g. '22 АВГУСТА 2005 ГОДА'
+    m_verbal = re.search(r'\b(\d{1,2})\s+([а-яА-ЯёЁ]{3,12})\s+(\d{4})(?:\s*г(?:ода|\.)?)?\b', clean_ocr)
+    if m_verbal:
+        norm, ok, _ = linguistics.normalize_date(m_verbal.group(0))
+        if ok:
+            return norm
+
+    # 3. Numeric format anywhere in text: DD.MM.YYYY
+    m_num = re.search(r'\b(\d{1,2}[./\-]\d{1,2}[./\-]\d{4})\b', clean_ocr)
+    if m_num:
+        norm, ok, _ = linguistics.normalize_date(m_num.group(1))
+        if ok:
+            return norm
+
+    return None
+
 def parse_snils_card_text(text: str) -> Dict[str, Any]:
     """
     Extracts SNILS number, FIO, birth date, gender from SNILS card text.
@@ -157,9 +205,8 @@ def parse_snils_card_text(text: str) -> Dict[str, Any]:
         snils_match = re.search(r'\b(\d{11})\b', text)
     snils_num = snils_match.group(1) if snils_match else None
     
-    # 2. Search for birth date
-    date_match = re.search(r'(\d{2}[./\-]\d{2}[./\-]\d{4})', text)
-    birth_date = date_match.group(1) if date_match else None
+    # 2. Search for birth date (verbal or numeric)
+    birth_date = extract_birth_date(text)
     
     # 3. Search for gender
     gender = None
@@ -191,8 +238,8 @@ def parse_passport_text(text: str) -> Dict[str, Any]:
     """
     clean_lines = [line.strip() for line in text.split('\n') if line.strip()]
     
-    date_match = re.search(r'(\d{2}[./\-]\d{2}[./\-]\d{4})', text)
-    birth_date = date_match.group(1) if date_match else None
+    # Search for birth date (verbal or numeric)
+    birth_date = extract_birth_date(text)
     
     gender = None
     if re.search(r'\b(МУЖ|МУЖСКОЙ|М)\b', text, re.IGNORECASE):
