@@ -189,6 +189,31 @@ def test_multi_ot_sequential_no_violations():
     assert dates == ['01.09.2026 - 05.09.2026', '06.09.2026 - 10.09.2026', '11.09.2026 - 15.09.2026']
     print("✓ test_multi_ot_sequential_no_violations passed")
 
+def test_real_snils_photo_ocr():
+    sample_img = "Исходники/snils_photo_sample.jpg"
+    assert os.path.exists(sample_img), f"Sample image {sample_img} not found"
+    
+    with open(sample_img, "rb") as f:
+        files = [("files", ("snils_photo_sample.jpg", f, "image/jpeg"))]
+        data = {
+            "raw_text": "должность монтажник",
+            "program": "ОТ (Б+СИЗ+ПП)",
+            "study_dates": "01.09.2026 - 15.09.2026"
+        }
+        res = client.post("/api/process", files=files, data=data)
+        
+    assert res.status_code == 200, f"Error: {res.text}"
+    jdata = res.json()
+    assert jdata["success"] is True
+    assert jdata["unique_students"] == 1
+    stud = list(jdata["grouped_data"].values())[0]["students"][0]
+    assert stud["fio_nom"] == "Абрамов Антон Александрович", f"Expected Абрамов Антон Александрович, got {stud['fio_nom']}"
+    assert stud["snils"] == "094-314-268 64", f"Expected 094-314-268 64, got {stud['snils']}"
+    assert stud["birth_date"] == "12.04.1983", f"Expected 12.04.1983, got {stud['birth_date']}"
+    assert stud["gender"] == "М", f"Expected М, got {stud['gender']}"
+    assert "Монтажник" in stud["position"], f"Expected Монтажник, got {stud['position']}"
+    print("✓ test_real_snils_photo_ocr passed")
+
 if __name__ == "__main__":
     test_homepage()
     test_errors_sample_file()
@@ -196,6 +221,7 @@ if __name__ == "__main__":
     test_image_and_multi_programs()
     test_verbal_birth_date()
     test_multi_ot_sequential_no_violations()
+    test_real_snils_photo_ocr()
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")
 
 
