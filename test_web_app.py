@@ -97,8 +97,43 @@ def test_process_raw_text():
     assert json_data["unique_students"] == 2
     print("✓ test_process_raw_text passed")
 
+def test_image_and_multi_programs():
+    from PIL import Image, ImageDraw
+    img = Image.new('RGB', (600, 300), color='white')
+    draw = ImageDraw.Draw(img)
+    draw.text((30, 30), 'СТРАХОВОЕ СВИДЕТЕЛЬСТВО', fill='black')
+    draw.text((30, 80), '078-404-337 73', fill='black')
+    draw.text((30, 130), '22.12.1978', fill='black')
+    img_path = "uploads/test_snils_temp.png"
+    img.save(img_path)
+    
+    try:
+        with open(img_path, "rb") as f:
+            files = [("files", ("test_snils_temp.png", f, "image/png"))]
+            data = {
+                "raw_text": "должность монтажник",
+                "program": "ОТ (Б+СИЗ+ПП); Высота 1 группа",
+                "study_dates": "01.09.2026 - 15.09.2026"
+            }
+            res = client.post("/api/process", files=files, data=data)
+            
+        assert res.status_code == 200
+        jdata = res.json()
+        assert jdata["success"] is True
+        assert jdata["unique_students"] == 1
+        assert jdata["programs_count"] == 4
+        # Verify position was assigned from raw_text
+        student_obj = list(jdata["grouped_data"].values())[0]["students"][0]
+        assert "Монтажник" in student_obj["position"]
+        print("✓ test_image_and_multi_programs passed")
+    finally:
+        if os.path.exists(img_path):
+            os.remove(img_path)
+
 if __name__ == "__main__":
     test_homepage()
     test_errors_sample_file()
     test_process_raw_text()
+    test_image_and_multi_programs()
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")
+

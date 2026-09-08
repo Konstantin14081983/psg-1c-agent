@@ -13,6 +13,7 @@ import re
 import subprocess
 import zipfile
 import xml.etree.ElementTree as ET
+import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
 import openpyxl
@@ -305,6 +306,26 @@ def parse_incoming_application(file_path: str) -> Dict[str, Any]:
             txt_res = parse_raw_text_application(pdf_text)
             if txt_res['students']:
                 return txt_res
+    elif ext in ('.png', '.jpg', '.jpeg', '.heic', '.webp', '.bmp', '.tiff'):
+        import document_vision
+        vision_res = document_vision.parse_document_image(file_path)
+        students = []
+        if vision_res.get('success'):
+            students.append({
+                "fio_nom": vision_res.get('fio') or "Слушатель (по фото документа)",
+                "fio_dat": "",
+                "position": "",
+                "gender": vision_res.get('gender') or "",
+                "birth_date": vision_res.get('birth_date') or "",
+                "snils": vision_res.get('snils') or "",
+                "study_dates": "",
+                "contacts": "",
+                "program": ""
+            })
+        return {
+            "title": f"ЗАЯВКА НА ОБУЧЕНИЕ от {datetime.date.today().strftime('%d.%m.%Y')} г.",
+            "students": students
+        }
     else:
         # Check if text file
         if ext in ('.txt', '.csv'):
@@ -383,3 +404,36 @@ def parse_incoming_application(file_path: str) -> Dict[str, Any]:
         "title": extracted_title,
         "students": students_raw
     }
+
+def extract_supplementary_instructions(text: Optional[str]) -> Dict[str, Any]:
+    """
+    Extracts supplementary manager parameters from unstructured text messages:
+    e.g. 'должность монтажник', 'программа Охрана труда', 'сроки 01.09.2026 - 15.09.2026'
+    """
+    if not text:
+        return {}
+        
+    res = {}
+    t = text.strip()
+    
+    # 1. Position extraction
+    m_pos = re.search(r'(?:должност[ьи]|професси[яи]|долж\.|проф\.)[:\s]+([^\n,;\.]+)', t, re.I)
+    if m_pos:
+        res['position'] = m_pos.group(1).strip()
+    else:
+        words = t.split()
+        if 1 <= len(words) <= 4 and not re.search(r'\d', t):
+            res['position'] = t
+            
+    # 2. Program extraction
+    m_prog = re.search(r'(?:программ[аы]|направлени[ея]|курс)[:\s]+([^\n;]+)', t, re.I)
+    if m_prog:
+        res['program'] = m_prog.group(1).strip()
+        
+    # 3. Dates extraction
+    m_dates = re.search(r'(\d{2}\.\d{2}\.\d{4}\s*[-—–]\s*\d{2}\.\d{2}\.\d{4})', t)
+    if m_dates:
+        res['study_dates'] = m_dates.group(1).strip()
+        
+    return res
+

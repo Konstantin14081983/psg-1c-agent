@@ -66,11 +66,11 @@ PROG_ECO_WASTE = CANONICAL_PROGRAMS[19]
 PROG_ECO_MGMT = CANONICAL_PROGRAMS[20]
 PROG_ECO_SERVICE = CANONICAL_PROGRAMS[21]
 
-def match_programs(raw_text: Optional[str]) -> List[Dict[str, Any]]:
+def match_programs(raw_text: Any) -> List[Dict[str, Any]]:
     """
-    Parses customer's program string into one or more canonical programs.
-    Returns list of dicts:
-      [{'name': str, 'is_canonical': bool, 'warning': Optional[str]}]
+    Parses customer's program string (or list) into one or more canonical programs.
+    Supports MULTIPLE programs separated by ';' or '\n' or passed as a list.
+    E.g. 'ОТ (Б+СИЗ+ПП); Высота 1 группа' -> matches all selected programs.
     """
     if not raw_text:
         return [{
@@ -79,9 +79,27 @@ def match_programs(raw_text: Optional[str]) -> List[Dict[str, Any]]:
             'warning': 'В заявке заказчика не указано наименование программы обучения'
         }]
         
+    if isinstance(raw_text, list):
+        items = [str(x).strip() for x in raw_text if str(x).strip()]
+    else:
+        items = [p.strip() for p in re.split(r'[;\n]+', str(raw_text)) if p.strip()]
+        
+    if len(items) > 1:
+        all_results = []
+        for it in items:
+            sub = match_single_program(it)
+            for s in sub:
+                if not any(existing['name'] == s['name'] for existing in all_results):
+                    all_results.append(s)
+        return all_results if all_results else match_single_program(items[0])
+        
+    return match_single_program(items[0] if items else "")
+
+def match_single_program(raw_text: str) -> List[Dict[str, Any]]:
     text = raw_text.strip()
     text_clean = re.sub(r'\s+', ' ', text)
     t_lower = text_clean.lower()
+
     
     # 1. Exact match with catalog
     for canon in CANONICAL_PROGRAMS:

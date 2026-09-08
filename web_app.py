@@ -411,6 +411,32 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
       border-color: var(--psg-red);
     }}
 
+    .prog-chip-label {{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.73rem;
+      background: #F1F5F9;
+      color: #334155;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--psg-gray-border);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }}
+
+    .prog-chip-label:hover {{
+      background: #E2E8F0;
+      border-color: #94A3B8;
+    }}
+
+    .prog-chip-label input[type="checkbox"] {{
+      accent-color: var(--psg-red);
+      width: 13px;
+      height: 13px;
+    }}
+
     .checkbox-group {{
       display: flex;
       flex-direction: column;
@@ -760,8 +786,16 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
           </div>
 
           <div class="form-group">
-            <label class="form-label">Название программы (если в сканах только СНИЛС/паспорта):</label>
-            <input type="text" class="form-input" id="overrideProgram" list="programList" placeholder="Например: ОТ (Б+СИЗ+ПП) или Высота 1 группа">
+            <label class="form-label">Программы обучения (можно выбрать несколько или ввести свои):</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem;">
+              <label class="prog-chip-label"><input type="checkbox" name="progChip" value="ОТ (Б+СИЗ+ПП)" onchange="updateSelectedPrograms()"> 🛡️ Охрана труда (Б+СИЗ+ПП)</label>
+              <label class="prog-chip-label"><input type="checkbox" name="progChip" value="Высота 1 группа" onchange="updateSelectedPrograms()"> 🧗 Высота 1 группа</label>
+              <label class="prog-chip-label"><input type="checkbox" name="progChip" value="Высота 2 группа" onchange="updateSelectedPrograms()"> 🧗 Высота 2 группа</label>
+              <label class="prog-chip-label"><input type="checkbox" name="progChip" value="ДПП Специалист по пожарной профилактике" onchange="updateSelectedPrograms()"> 🔥 Пожарная безопасность</label>
+              <label class="prog-chip-label"><input type="checkbox" name="progChip" value="Обучение по программе 'Нормы и правила работы в электроустановках'" onchange="updateSelectedPrograms()"> ⚡ Электробезопасность</label>
+              <label class="prog-chip-label"><input type="checkbox" name="progChip" value="Ежегодные занятия с водителями автотранспортных средств" onchange="updateSelectedPrograms()"> 🚗 Водители (БДД 20ч)</label>
+            </div>
+            <input type="text" class="form-input" id="overrideProgram" list="programList" placeholder="Укажите программу или несколько через точку с запятой ';'">
             <datalist id="programList">
               <option value="ОТ (Б+СИЗ+ПП)">
               <option value="Программа обучения безопасным методам и приемам выполнения работ на высоте, 1 группа">
@@ -1051,6 +1085,12 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
       document.getElementById('docDiploma').checked = false;
       document.getElementById('docPhoto').checked = false;
       document.getElementById('docCertificate').checked = false;
+      document.querySelectorAll('input[name="progChip"]').forEach(c => c.checked = false);
+    }}
+
+    function updateSelectedPrograms() {{
+      const checked = Array.from(document.querySelectorAll('input[name="progChip"]:checked')).map(c => c.value);
+      document.getElementById('overrideProgram').value = checked.join('; ');
     }}
 
     // Auto-formatting mask for study dates input: DD.MM.YYYY - DD.MM.YYYY
@@ -1099,12 +1139,8 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
       
       const rawText = document.getElementById('rawTextInput').value.trim();
       
-      if (activeTab === 'file' && selectedFiles.length === 0) {{
-        alert('Пожалуйста, добавьте хотя бы один файл заявки или переключитесь на вкладку "Текст сообщения".');
-        return;
-      }}
-      if (activeTab === 'text' && !rawText) {{
-        alert('Пожалуйста, введите текст сообщения с данными слушателей.');
+      if (selectedFiles.length === 0 && !rawText) {{
+        alert('Пожалуйста, добавьте файл(ы) заявки (СНИЛС, паспорт, docx, xlsx) или введите текст сообщения.');
         return;
       }}
 
@@ -1114,12 +1150,12 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
       document.getElementById('submitBtn').disabled = true;
 
       const formData = new FormData();
-      if (activeTab === 'file') {{
+      if (selectedFiles.length > 0) {{
         selectedFiles.forEach(file => {{
           formData.append('files', file);
         }});
       }}
-      if (activeTab === 'text' && rawText) {{
+      if (rawText) {{
         formData.append('raw_text', rawText);
       }}
 
@@ -1306,33 +1342,15 @@ async def process_api(
     has_certificate: Optional[bool] = Form(False)
 ):
     saved_file_paths = []
-    text_records = []
     
     try:
         if files:
             for file in files:
                 if file and file.filename:
-                    file_ext = os.path.splitext(file.filename)[1].lower()
                     temp_path = os.path.join("uploads", file.filename)
                     with open(temp_path, "wb") as f:
                         shutil.copyfileobj(file.file, f)
-                    
-                    # If image document (photo of passport, SNILS, diploma)
-                    if file_ext in ('.png', '.jpg', '.jpeg', '.heic'):
-                        vision_res = document_vision.parse_document_image(temp_path)
-                        if vision_res.get("success") and vision_res.get("fio"):
-                            doc_fio = vision_res.get("fio", "")
-                            doc_snils = vision_res.get("snils", "")
-                            doc_birth = vision_res.get("birth_date", "")
-                            text_records.append(f"{doc_fio}, {doc_birth}, {doc_snils}, {position or 'Слушатель'}, {program or 'Охрана труда'}")
-                        else:
-                            saved_file_paths.append(temp_path)
-                    else:
-                        saved_file_paths.append(temp_path)
-                        
-        combined_raw_text = raw_text or ""
-        if text_records:
-            combined_raw_text = (combined_raw_text + "\n" if combined_raw_text else "") + "\n".join(text_records)
+                    saved_file_paths.append(temp_path)
 
         manual_overrides = {
             "category": category if category else None,
@@ -1348,7 +1366,7 @@ async def process_api(
 
         result = psg_agent.process_application(
             input_file=saved_file_paths if saved_file_paths else None,
-            raw_text=combined_raw_text if combined_raw_text else None,
+            raw_text=raw_text if raw_text else None,
             output_file=None,
             manual_overrides=manual_overrides
         )

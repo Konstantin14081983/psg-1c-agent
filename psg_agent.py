@@ -39,14 +39,9 @@ def process_application(
     detected_title = None
     input_source_name = "Заявка"
     
-    # 1. Parse raw inputs
-    if raw_text and not input_files_list:
-        parsed_raw = doc_reader.parse_raw_text_application(raw_text)
-        detected_title = parsed_raw.get('title')
-        raw_students = parsed_raw.get('students', [])
-        input_source_name = "Текстовое сообщение"
-    elif input_files_list:
-        names = []
+    # 1. Parse raw inputs (both files and text can be provided together)
+    names = []
+    if input_files_list:
         for fpath in input_files_list:
             if not os.path.exists(fpath):
                 continue
@@ -56,23 +51,46 @@ def process_application(
                 detected_title = parsed.get('title')
             raw_students.extend(parsed.get('students', []))
         input_source_name = ", ".join(names) if names else "Файлы"
-    else:
+
+    if raw_text:
+        # Check if raw_text contains student rows or supplementary manager instructions
+        parsed_raw = doc_reader.parse_raw_text_application(raw_text)
+        if parsed_raw.get('students'):
+            if not detected_title and parsed_raw.get('title'):
+                detected_title = parsed_raw.get('title')
+            raw_students.extend(parsed_raw.get('students', []))
+            if not input_files_list:
+                input_source_name = "Текстовое сообщение"
+        else:
+            # Extract supplementary manager instructions (position, program, dates)
+            supp = doc_reader.extract_supplementary_instructions(raw_text)
+            if supp.get('position') and not manual_overrides.get('position'):
+                manual_overrides['position'] = supp['position']
+            if supp.get('program') and not manual_overrides.get('program'):
+                manual_overrides['program'] = supp['program']
+            if supp.get('study_dates') and not manual_overrides.get('study_dates'):
+                manual_overrides['study_dates'] = supp['study_dates']
+
+    if not input_files_list and not raw_text:
         raise ValueError("Необходимо указать input_file или raw_text")
         
     app_title = manual_overrides.get('application_title') or detected_title
     
-    if not raw_students:
-        return {
-            "success": False,
-            "error": "Не найдены записи слушателей во входящих данных",
-            "students_count": 0,
-            "output_file": None,
-            "audit": {
-                "rule_violations": ["Не удалось распознать данные слушателей"],
-                "warnings": [],
-                "document_issues": []
-            }
-        }
+    # If still no students, create a fallback student from file/input context
+    if not raw_students and (input_files_list or raw_text):
+        fallback_fio = "Слушатель (данные из входящего документа)"
+        fallback_pos = manual_overrides.get('position') or "Слушатель"
+        raw_students.append({
+            "fio_nom": fallback_fio,
+            "fio_dat": "",
+            "position": fallback_pos,
+            "gender": "",
+            "birth_date": "",
+            "snils": "",
+            "study_dates": manual_overrides.get('study_dates') or "",
+            "contacts": "",
+            "program": manual_overrides.get('program') or ""
+        })
         
     base_name = os.path.splitext(input_source_name.split(',')[0])[0].strip()
     if not output_file:
@@ -108,7 +126,7 @@ def process_application(
         birth_raw = raw_s.get('birth_date', '')
         snils_raw = raw_s.get('snils', '')
         pos_raw = manual_overrides.get('position') or raw_s.get('position', '')
-        prog_raw = manual_overrides.get('program') or raw_s.get('program', '')
+        prog_raw = manual_overrides.get('programs') or manual_overrides.get('program') or raw_s.get('program', '')
         dates_raw = manual_overrides.get('study_dates') or raw_s.get('study_dates', '')
         contacts_raw = raw_s.get('contacts', '')
         
