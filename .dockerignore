@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.git
+.gitignore
+.env
+uploads/*
+output_1c/*
+!uploads/.gitkeep
+!output_1c/.gitkeep

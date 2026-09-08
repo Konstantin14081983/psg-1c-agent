@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.env
+~$*
+Заявка_1С_*.xlsx
+uploads/*
+!uploads/.gitkeep
+output_1c/*
+!output_1c/.gitkeep
+xl_styles_temp.xml

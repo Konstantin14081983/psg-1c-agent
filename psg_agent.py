@@ -1,0 +1,353 @@
+"""
+PSG 1C Application Agent (Main Orchestrator).
+Processes incoming client applications in DOCX, XLSX, PDF, images, or plain text,
+enforces training rules, normalizes data, and generates 1C-compliant Excel files.
+Supports multi-file batches and intelligent contact cleaning.
+"""
+
+import os
+import sys
+import argparse
+import datetime
+from typing import Dict, Any, List, Optional, Union
+from collections import OrderedDict
+
+import linguistics
+import program_matcher
+import training_rules
+import doc_reader
+import excel_builder
+
+def process_application(
+    input_file: Optional[Union[str, List[str]]] = None,
+    raw_text: Optional[str] = None,
+    output_file: Optional[str] = None,
+    manual_overrides: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Processes an incoming application file(s) or text and generates 1C Excel spreadsheet.
+    """
+    manual_overrides = manual_overrides or {}
+    
+    input_files_list = []
+    if isinstance(input_file, list):
+        input_files_list = input_file
+    elif isinstance(input_file, str):
+        input_files_list = [input_file]
+        
+    raw_students = []
+    detected_title = None
+    input_source_name = "Заявка"
+    
+    # 1. Parse raw inputs
+    if raw_text and not input_files_list:
+        parsed_raw = doc_reader.parse_raw_text_application(raw_text)
+        detected_title = parsed_raw.get('title')
+        raw_students = parsed_raw.get('students', [])
+        input_source_name = "Текстовое сообщение"
+    elif input_files_list:
+        names = []
+        for fpath in input_files_list:
+            if not os.path.exists(fpath):
+                continue
+            names.append(os.path.basename(fpath))
+            parsed = doc_reader.parse_incoming_application(fpath)
+            if not detected_title and parsed.get('title'):
+                detected_title = parsed.get('title')
+            raw_students.extend(parsed.get('students', []))
+        input_source_name = ", ".join(names) if names else "Файлы"
+    else:
+        raise ValueError("Необходимо указать input_file или raw_text")
+        
+    app_title = manual_overrides.get('application_title') or detected_title
+    
+    if not raw_students:
+        return {
+            "success": False,
+            "error": "Не найдены записи слушателей во входящих данных",
+            "students_count": 0,
+            "output_file": None,
+            "audit": {
+                "rule_violations": ["Не удалось распознать данные слушателей"],
+                "warnings": [],
+                "document_issues": []
+            }
+        }
+        
+    base_name = os.path.splitext(input_source_name.split(',')[0])[0].strip()
+    if not output_file:
+        output_dir = os.path.dirname(input_files_list[0]) if input_files_list else "."
+        today_clean = datetime.date.today().strftime("%Y%m%d_%H%M%S")
+        output_file = os.path.join(output_dir or ".", f"Заявка_1С_{base_name}_{today_clean}.xlsx")
+        
+    grouped_programs: Dict[str, Dict[str, Any]] = OrderedDict()
+    all_warnings = []
+    rule_violations = []
+    document_issues = []
+    student_audit_cards = []
+    
+    if app_title:
+        clean_title, title_warnings = linguistics.clean_application_title(app_title)
+        app_title = clean_title
+        for tw in title_warnings:
+            all_warnings.append({
+                'type': 'Заголовок заявки',
+                'student': 'Шапка документа',
+                'field': 'application_title',
+                'reason': tw,
+                'message': tw
+            })
+            
+    student_enrollment_tracker: Dict[str, List[Dict[str, Any]]] = {}
+    
+    # 2. Process each student
+    for s_idx, raw_s in enumerate(raw_students, start=1):
+        fio_nom_raw = raw_s.get('fio_nom', '')
+        fio_dat_raw = raw_s.get('fio_dat', '')
+        gender_raw = raw_s.get('gender', '')
+        birth_raw = raw_s.get('birth_date', '')
+        snils_raw = raw_s.get('snils', '')
+        pos_raw = manual_overrides.get('position') or raw_s.get('position', '')
+        prog_raw = manual_overrides.get('program') or raw_s.get('program', '')
+        dates_raw = manual_overrides.get('study_dates') or raw_s.get('study_dates', '')
+        contacts_raw = raw_s.get('contacts', '')
+        
+        # Linguistic & FIO processing (with anomaly and patronymic typo check)
+        fio_res = linguistics.process_person_fio(fio_nom_raw, fio_dat_raw, gender_raw)
+        
+        # SNILS validation
+        snils_formatted, snils_valid, snils_warn = linguistics.validate_and_format_snils(snils_raw)
+        
+        # Date validation
+        birth_formatted, birth_valid, birth_warn = linguistics.normalize_date(birth_raw) if birth_raw else ("", True, None)
+        
+        # Position normalization & typo corrections
+        pos_clean, pos_warn, pos_had_issues = training_rules.normalize_position(pos_raw)
+        pos_clean, pos_homo = linguistics.clean_homoglyphs(pos_clean)
+        
+        # Contacts cleaning & validation:
+        # Garbage like 'uuuuu' or '111111' is cleaned to "" without yellow highlight!
+        contacts_clean, contacts_yellow, contacts_warn = linguistics.clean_and_validate_contacts(contacts_raw)
+        
+        # Yellow flags compiler
+        yellow_flags = {}
+        for col in fio_res.get('yellow_columns', []):
+            if col == 'nom_fio':
+                yellow_flags['nom_fio'] = fio_res.get('nom_warning') or "Подозрительные символы или опечатка в ФИО"
+            elif col == 'dat_fio':
+                yellow_flags['dat_fio'] = fio_res.get('dat_warning') or fio_res.get('patronymic_warning') or "Проверьте окончание дательного падежа"
+                
+        if not snils_valid:
+            yellow_flags['snils'] = snils_warn or "Некорректный номер СНИЛС"
+            
+        if not birth_valid and birth_raw:
+            yellow_flags['birth_date'] = birth_warn or "Некорректный формат даты рождения"
+        elif not birth_raw:
+            yellow_flags['birth_date'] = "Дата рождения не указана"
+            
+        if pos_had_issues:
+            yellow_flags['position'] = pos_warn or "Проверьте написание должности"
+            
+        if contacts_yellow:
+            yellow_flags['contacts'] = contacts_warn or "Некорректный формат контактов"
+            
+        # Program matching & expansion
+        matched_progs = program_matcher.match_programs(prog_raw)
+        
+        student_key = fio_res['nom_fio']
+        if student_key not in student_enrollment_tracker:
+            student_enrollment_tracker[student_key] = []
+            
+        for prog in matched_progs:
+            p_name = prog['name']
+            
+            # Category and date auditing
+            date_audit = training_rules.validate_dates_and_category(p_name, dates_raw)
+            if date_audit['has_error']:
+                for dw in date_audit['warnings']:
+                    rule_violations.append({
+                        'student': fio_res['nom_fio'],
+                        'program': p_name,
+                        'message': dw
+                    })
+                    yellow_flags['study_dates'] = dw
+                    
+            # Document package checklist
+            doc_flags = manual_overrides.get('documents') or {}
+            doc_warns = training_rules.validate_document_package(
+                date_audit['category'],
+                {
+                    'fio_nom': fio_res['nom_fio'],
+                    'birth_date': birth_formatted,
+                    'snils': snils_formatted,
+                    'position': pos_clean,
+                    'program': p_name
+                },
+                doc_flags
+            )
+            for dw in doc_warns:
+                document_issues.append({
+                    'student': fio_res['nom_fio'],
+                    'category': date_audit['category'],
+                    'message': dw
+                })
+                
+            student_record = {
+                'fio_nom': fio_res['nom_fio'],
+                'fio_dat': fio_res['dat_fio'],
+                'position': pos_clean,
+                'gender': fio_res['gender'],
+                'birth_date': birth_formatted,
+                'snils': snils_formatted,
+                'study_dates': linguistics.clean_text(dates_raw),
+                'contacts': contacts_clean,
+                'yellow_flags': yellow_flags
+            }
+            
+            student_enrollment_tracker[student_key].append({
+                'program': p_name,
+                'category': date_audit['category'],
+                'start_date': date_audit['start_date'],
+                'end_date': date_audit['end_date']
+            })
+            
+            if p_name not in grouped_programs:
+                grouped_programs[p_name] = {
+                    'is_canonical': prog['is_canonical'],
+                    'warning': prog['warning'],
+                    'category': date_audit['category'],
+                    'students': []
+                }
+                if prog['warning']:
+                    all_warnings.append({
+                        'program': p_name,
+                        'reason': prog['warning']
+                    })
+                    
+            grouped_programs[p_name]['students'].append(student_record)
+            
+        for col_name, reason in yellow_flags.items():
+            all_warnings.append({
+                'student': fio_res['nom_fio'],
+                'field': col_name,
+                'reason': reason
+            })
+            
+        student_audit_cards.append({
+            'fio': fio_res['nom_fio'],
+            'fio_dat': fio_res['dat_fio'],
+            'gender': fio_res['gender'],
+            'snils': snils_formatted,
+            'birth_date': birth_formatted,
+            'position': pos_clean,
+            'contacts': contacts_clean,
+            'flags_count': len(yellow_flags),
+            'flags': yellow_flags
+        })
+        
+    # Multi-program overlap check
+    for s_name, enrollments in student_enrollment_tracker.items():
+        overlap_issues = training_rules.audit_student_program_overlaps(enrollments)
+        for issue in overlap_issues:
+            rule_violations.append({
+                'student': s_name,
+                'program': "Совмещение программ",
+                'message': issue['message']
+            })
+            
+    # Build Excel spreadsheet with turquoise fills and no comments
+    wb = excel_builder.create_1c_application_workbook(app_title, grouped_programs)
+    wb.save(output_file)
+    
+    total_enrollments = sum(len(p['students']) for p in grouped_programs.values())
+    
+    return {
+        "success": True,
+        "input_source": input_source_name,
+        "output_file": output_file,
+        "output_filename": os.path.basename(output_file),
+        "application_title": app_title,
+        "unique_students": len(raw_students),
+        "total_enrollments": total_enrollments,
+        "programs_count": len(grouped_programs),
+        "programs": list(grouped_programs.keys()),
+        "grouped_data": grouped_programs,
+        "students_summary": student_audit_cards,
+        "audit": {
+            "warnings_count": len(all_warnings),
+            "warnings": all_warnings,
+            "rule_violations": rule_violations,
+            "document_issues": document_issues
+        }
+    }
+
+def print_report(result: Dict[str, Any]):
+    print("=" * 70)
+    print("      ОТЧЕТ АГЕНТА: ОБРАБОТКА ЗАЯВКИ ДЛЯ 1С")
+    print("=" * 70)
+    if not result.get("success"):
+        print(f"❌ Ошибка обработки: {result.get('error')}")
+        return
+        
+    print(f"📁 Источник:          {result['input_source']}")
+    print(f"💾 Создан файл 1С:    {result['output_file']}")
+    print(f"📋 Заголовок заявки:  {result['application_title'] or 'Сформирован по умолчанию'}")
+    print(f"👥 Слушателей всего:  {result['unique_students']}")
+    print(f"🎓 Программ обучения: {result['programs_count']}")
+    print(f"📊 Записей в 1С:      {result['total_enrollments']}")
+    print("-" * 70)
+    print("Программы обучения в заявке:")
+    for idx, p in enumerate(result['programs'], 1):
+        print(f"  {idx}. {p}")
+        
+    audit = result.get('audit', {})
+    rule_violations = audit.get('rule_violations', [])
+    doc_issues = audit.get('document_issues', [])
+    warnings = audit.get('warnings', [])
+    
+    if rule_violations:
+        print("\n🚫 НАРУШЕНИЯ РЕГЛАМЕНТА ОБУЧЕНИЯ (ДАТЫ / ПОСЛЕДОВАТЕЛЬНОСТЬ):")
+        for rv in rule_violations:
+            print(f"  • [{rv.get('student')}] {rv.get('message')}")
+            
+    if doc_issues:
+        print("\n📄 ЗАМЕЧАНИЯ ПО ПАКЕТУ ДОКУМЕНТОВ:")
+        for di in doc_issues:
+            print(f"  • [{di.get('student')}] ({di.get('category')}): {di.get('message')}")
+            
+    if warnings:
+        print(f"\n⚠️  СПОРНЫЕ МОМЕНТЫ (подсвечены ЖЕЛТЫМ в файле 1С): {len(warnings)}")
+        for i, w in enumerate(warnings, 1):
+            msg = w.get('reason') or w.get('message', '')
+            if 'student' in w:
+                print(f"  [{i}] {w['student']} | Поле: {w.get('field', '-')} -> {msg}")
+            elif 'program' in w:
+                print(f"  [{i}] Программа: {w['program']} -> {msg}")
+            else:
+                print(f"  [{i}] {msg}")
+    else:
+        print("\n✅ Все данные выверены. Спорных моментов и орфографических ошибок не обнаружено.")
+    print("=" * 70)
+
+def main():
+    parser = argparse.ArgumentParser(description="Агент обработки заявок на обучение для 1С (ПСГ)")
+    parser.add_argument("--input", "-i", nargs="+", help="Путь к входящей заявке (docx, xlsx, pdf, jpeg, png, heic)")
+    parser.add_argument("--text", "-t", help="Сырой текст сообщения заявки")
+    parser.add_argument("--output", "-o", help="Путь к результирующему файлу Excel для 1С")
+    args = parser.parse_args()
+    
+    if not args.input and not args.text:
+        print("Укажите --input <файл...> или --text '<текст заявки>'", file=sys.stderr)
+        sys.exit(1)
+        
+    try:
+        res = process_application(input_file=args.input, raw_text=args.text, output_file=args.output)
+        print_report(res)
+    except Exception as e:
+        print(f"❌ Критическая ошибка: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
