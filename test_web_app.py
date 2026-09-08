@@ -173,11 +173,29 @@ def test_verbal_birth_date():
     assert "birth_date" not in stud["yellow_flags"]
     print("✓ test_verbal_birth_date passed")
 
+def test_multi_ot_sequential_no_violations():
+    data = {
+        "raw_text": "Федотов Илья Андреевич, монтажник, 071-884-230 76, 22.08.2005",
+        "program": "ОТ (Б+СИЗ+ПП)",
+        "study_dates": "01.09.2026 - 15.09.2026"
+    }
+    res = client.post("/api/process", data=data)
+    assert res.status_code == 200
+    jdata = res.json()
+    assert jdata["success"] is True
+    assert jdata["audit"]["rule_violations"] == [], f"Expected no violations, got: {jdata['audit']['rule_violations']}"
+    # Verify sequential assignment
+    dates = [pdata["students"][0]["study_dates"] for pdata in jdata["grouped_data"].values()]
+    assert dates == ['01.09.2026 - 05.09.2026', '06.09.2026 - 10.09.2026', '11.09.2026 - 15.09.2026']
+    print("✓ test_multi_ot_sequential_no_violations passed")
+
 if __name__ == "__main__":
     test_homepage()
     test_errors_sample_file()
     test_process_raw_text()
     test_image_and_multi_programs()
     test_verbal_birth_date()
+    test_multi_ot_sequential_no_violations()
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")
+
 

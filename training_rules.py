@@ -283,3 +283,74 @@ def audit_student_program_overlaps(
                         })
                         
     return issues
+
+def assign_sequential_dates(
+    matched_programs: List[Dict[str, Any]],
+    dates_raw: Optional[str]
+) -> List[Tuple[Dict[str, Any], str, bool]]:
+    """
+    Distributes dates across matched programs.
+    If multiple programs belong to a category requiring sequential scheduling
+    (e.g. CAT_OT or CAT_HEIGHT_OZP) and a single overall date range is provided,
+    splits the overall range into consecutive non-overlapping sub-periods.
+    Supports semicolon-delimited date ranges if provided by manager.
+    Returns list of (prog_dict, assigned_date_str, was_split).
+    """
+    if not dates_raw or not str(dates_raw).strip():
+        return [(p, "", False) for p in matched_programs]
+        
+    cleaned_dates = dates_raw.strip()
+    
+    # Check if multiple semicolon-separated date ranges were passed
+    if ';' in cleaned_dates:
+        parts = [p.strip() for p in cleaned_dates.split(';') if p.strip()]
+        if len(parts) == len(matched_programs):
+            return [(matched_programs[i], parts[i], False) for i in range(len(matched_programs))]
+            
+    # Parse overall start and end date
+    start_d, end_d, warn = parse_date_range(cleaned_dates)
+    if not start_d or not end_d:
+        return [(p, cleaned_dates, False) for p in matched_programs]
+        
+    # Check if there are multiple programs requiring sequential training (e.g. OT or Height)
+    ot_progs = []
+    height_progs = []
+    for idx, p in enumerate(matched_programs):
+        cat = classify_program(p.get('name', ''))
+        if cat == CAT_OT:
+            ot_progs.append(idx)
+        elif cat == CAT_HEIGHT_OZP:
+            height_progs.append(idx)
+            
+    # Slices mapping
+    prog_dates = {idx: cleaned_dates for idx in range(len(matched_programs))}
+    was_split = False
+    
+    # Sequential partition helper for indices
+    def partition_indices(indices: List[int]):
+        nonlocal was_split
+        if len(indices) < 2:
+            return
+        was_split = True
+        k = len(indices)
+        total_days = (end_d - start_d).days + 1
+        curr = start_d
+        if total_days >= k:
+            base = total_days // k
+            rem = total_days % k
+            for i, p_idx in enumerate(indices):
+                days = base + (1 if i < rem else 0)
+                p_start = curr
+                p_end = curr + datetime.timedelta(days=days - 1)
+                prog_dates[p_idx] = f"{p_start.strftime('%d.%m.%Y')} - {p_end.strftime('%d.%m.%Y')}"
+                curr = p_end + datetime.timedelta(days=1)
+        else:
+            for p_idx in indices:
+                prog_dates[p_idx] = f"{curr.strftime('%d.%m.%Y')} - {curr.strftime('%d.%m.%Y')}"
+                curr = curr + datetime.timedelta(days=1)
+                
+    partition_indices(ot_progs)
+    partition_indices(height_progs)
+    
+    return [(matched_programs[i], prog_dates[i], was_split and (i in ot_progs or i in height_progs)) for i in range(len(matched_programs))]
+

@@ -1149,6 +1149,20 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
       document.getElementById('btnText').textContent = 'Обработка данных...';
       document.getElementById('submitBtn').disabled = true;
 
+      // Clear previous errors and audit panels immediately so no stale history is shown
+      const secViolations = document.getElementById('secViolations');
+      if (secViolations) secViolations.style.display = 'none';
+      const listViolations = document.getElementById('listViolations');
+      if (listViolations) listViolations.innerHTML = '';
+      const secDocs = document.getElementById('secDocs');
+      if (secDocs) secDocs.style.display = 'none';
+      const listDocs = document.getElementById('listDocs');
+      if (listDocs) listDocs.innerHTML = '';
+      const secYellow = document.getElementById('secYellow');
+      if (secYellow) secYellow.style.display = 'none';
+      const listYellow = document.getElementById('listYellow');
+      if (listYellow) listYellow.innerHTML = '';
+
       const formData = new FormData();
       if (selectedFiles.length > 0) {{
         selectedFiles.forEach(file => {{

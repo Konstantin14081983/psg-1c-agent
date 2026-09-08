@@ -171,16 +171,18 @@ def process_application(
             
         # Program matching & expansion
         matched_progs = program_matcher.match_programs(prog_raw)
+        progs_with_dates = training_rules.assign_sequential_dates(matched_progs, dates_raw)
         
         student_key = fio_res['nom_fio']
         if student_key not in student_enrollment_tracker:
             student_enrollment_tracker[student_key] = []
             
-        for prog in matched_progs:
+        for prog, p_dates, was_split in progs_with_dates:
             p_name = prog['name']
+            prog_yellow_flags = dict(yellow_flags)
             
             # Category and date auditing
-            date_audit = training_rules.validate_dates_and_category(p_name, dates_raw)
+            date_audit = training_rules.validate_dates_and_category(p_name, p_dates)
             if date_audit['has_error']:
                 for dw in date_audit['warnings']:
                     rule_violations.append({
@@ -188,7 +190,14 @@ def process_application(
                         'program': p_name,
                         'message': dw
                     })
-                    yellow_flags['study_dates'] = dw
+                    prog_yellow_flags['study_dates'] = dw
+            elif was_split:
+                all_warnings.append({
+                    'type': 'Сроки обучения',
+                    'student': fio_res['nom_fio'],
+                    'field': 'study_dates',
+                    'reason': f"Сроки для '{p_name[:35]}...' автоматически распределены последовательно: {p_dates}"
+                })
                     
             # Document package checklist
             doc_flags = manual_overrides.get('documents') or {}
@@ -217,9 +226,9 @@ def process_application(
                 'gender': fio_res['gender'],
                 'birth_date': birth_formatted,
                 'snils': snils_formatted,
-                'study_dates': linguistics.clean_text(dates_raw),
+                'study_dates': linguistics.clean_text(p_dates),
                 'contacts': contacts_clean,
-                'yellow_flags': yellow_flags
+                'yellow_flags': prog_yellow_flags
             }
             
             student_enrollment_tracker[student_key].append({
