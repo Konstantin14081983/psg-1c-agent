@@ -562,7 +562,11 @@ def reconcile_student_records(file_students: List[Dict[str, Any]], text_students
     return merged
 
 
-def parse_incoming_application(file_path: str) -> Dict[str, Any]:
+def parse_incoming_application(
+    file_path: str,
+    use_ai: bool = False,
+    openai_api_key: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Parses any incoming application file (DOCX, XLSX, PDF, Image)
     and returns normalized records ready for 1C processing.
@@ -595,25 +599,63 @@ def parse_incoming_application(file_path: str) -> Dict[str, Any]:
             txt_res = parse_raw_text_application(pdf_text)
             if txt_res['students']:
                 return txt_res
+
+        # If scanned PDF without selectable text, render page 1 to image and analyze
+        try:
+            import fitz
+            doc_pdf = fitz.open(file_path)
+            if len(doc_pdf) > 0:
+                page = doc_pdf[0]
+                pix = page.get_pixmap(dpi=200)
+                temp_img = os.path.join(os.path.dirname(file_path), f"temp_pdf_{os.path.basename(file_path)}.png")
+                pix.save(temp_img)
+                import document_vision
+                vision_res = document_vision.parse_document_image(temp_img, use_ai=use_ai, openai_api_key=openai_api_key)
+                if os.path.exists(temp_img):
+                    try:
+                        os.remove(temp_img)
+                    except Exception:
+                        pass
+                if vision_res.get('success'):
+                    return {
+                        "title": extracted_title or f"ЗАЯВКА НА ОБУЧЕНИЕ от {datetime.date.today().strftime('%d.%m.%Y')} г.",
+                        "students": [{
+                            "fio_nom": vision_res.get('fio') or "Слушатель (по PDF документу)",
+                            "fio_dat": "",
+                            "position": vision_res.get('position') or "",
+                            "gender": vision_res.get('gender') or "",
+                            "birth_date": vision_res.get('birth_date') or "",
+                            "snils": vision_res.get('snils') or "",
+                            "study_dates": "",
+                            "contacts": "",
+                            "program": "",
+                            "engine": vision_res.get('engine', '')
+                        }],
+                        "engine": vision_res.get('engine', '')
+                    }
+        except Exception:
+            pass
     elif ext in ('.png', '.jpg', '.jpeg', '.heic', '.webp', '.bmp', '.tiff'):
         import document_vision
-        vision_res = document_vision.parse_document_image(file_path)
+        vision_res = document_vision.parse_document_image(file_path, use_ai=use_ai, openai_api_key=openai_api_key)
         students = []
         if vision_res.get('success'):
             students.append({
                 "fio_nom": vision_res.get('fio') or "Слушатель (по фото документа)",
                 "fio_dat": "",
-                "position": "",
+                "position": vision_res.get('position') or "",
                 "gender": vision_res.get('gender') or "",
                 "birth_date": vision_res.get('birth_date') or "",
                 "snils": vision_res.get('snils') or "",
                 "study_dates": "",
                 "contacts": "",
-                "program": ""
+                "program": "",
+                "engine": vision_res.get('engine', '')
             })
         return {
             "title": f"ЗАЯВКА НА ОБУЧЕНИЕ от {datetime.date.today().strftime('%d.%m.%Y')} г.",
-            "students": students
+            "students": students,
+            "engine": vision_res.get('engine', '')
         }
     else:
         # Check if text file

@@ -34,6 +34,11 @@ def test_homepage():
     assert "clearManualParams" in response.text
     # Item 3: Must contain auto-mask for datesInput
     assert "datesInput" in response.text
+    # Item 4: AI Mode Switch & key drawer
+    assert "useAiToggle" in response.text
+    assert "aiModeCard" in response.text
+    assert "aiStatusBadge" in response.text
+    assert "openaiApiKeyInput" in response.text
     print("✓ test_homepage passed")
 
 def test_errors_sample_file():
@@ -345,6 +350,88 @@ def test_file_and_text_reconciliation_no_duplicates():
     assert found_fedotov is True, "Fedotov row not found in Excel"
     print("✓ test_file_and_text_reconciliation_no_duplicates passed")
 
+def test_ai_toggle_and_mocked_execution():
+    """
+    Test POST /api/process with use_ai=True and mocked OpenAI Vision API.
+    """
+    from unittest.mock import patch, MagicMock
+    import json
+    
+    mock_ai_response = {
+        "choices": [{
+            "message": {
+                "content": json.dumps({
+                    "fio": "Кузнецов Дмитрий Сергеевич",
+                    "birth_date": "15.07.1991",
+                    "gender": "М",
+                    "snils": "112-233-445 95",
+                    "doc_type": "СНИЛС",
+                    "position": "Электрогазосварщик",
+                    "citizenship": "РФ"
+                })
+            }
+        }]
+    }
+    
+    sample_img = "Исходники/snils_photo_sample.jpg"
+    with patch("requests.post") as mock_post:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = mock_ai_response
+        mock_resp.raise_for_status = MagicMock()
+        mock_post.return_value = mock_resp
+        
+        with open(sample_img, "rb") as f:
+            files = [("files", ("test_ai.jpg", f, "image/jpeg"))]
+            data = {
+                "use_ai": "true",
+                "openai_api_key": "sk-testkey12345",
+                "program": "Охрана труда",
+                "study_dates": "01.09.2026 - 15.09.2026"
+            }
+            res = client.post("/api/process", files=files, data=data)
+            
+        assert res.status_code == 200
+        jdata = res.json()
+        assert jdata["success"] is True
+        assert jdata["ocr_engine"] == "OpenAI Vision (GPT-4o-mini)"
+        stud = list(jdata["grouped_data"].values())[0]["students"][0]
+        assert stud["fio_nom"] == "Кузнецов Дмитрий Сергеевич"
+        assert stud["fio_dat"] == "Кузнецову Дмитрию Сергеевичу"
+        assert stud["birth_date"] == "15.07.1991"
+        assert stud["snils"] == "112-233-445 95"
+        assert stud["position"] == "Электрогазосварщик"
+        print("✓ test_ai_toggle_and_mocked_execution passed")
+
+def test_ai_fallback_to_tesseract_on_api_error():
+    """
+    Test that if use_ai=True but OpenAI fails (e.g. 401 Unauthorized or network error),
+    the system automatically and gracefully falls back to local Tesseract OCR.
+    """
+    from unittest.mock import patch
+    import requests
+    
+    sample_img = "Исходники/snils_photo_sample.jpg"
+    with patch("requests.post", side_effect=requests.RequestException("OpenAI API unreachable")):
+        with open(sample_img, "rb") as f:
+            files = [("files", ("test_fallback.jpg", f, "image/jpeg"))]
+            data = {
+                "use_ai": "true",
+                "openai_api_key": "sk-badkey",
+                "program": "ОТ (Б+СИЗ+ПП)",
+                "study_dates": "01.09.2026 - 15.09.2026"
+            }
+            res = client.post("/api/process", files=files, data=data)
+            
+        assert res.status_code == 200
+        jdata = res.json()
+        assert jdata["success"] is True
+        # Must fall back to Tesseract
+        assert jdata["ocr_engine"] == "Локальный Tesseract OCR"
+        stud = list(jdata["grouped_data"].values())[0]["students"][0]
+        assert "Абрамов" in stud["fio_nom"]
+        print("✓ test_ai_fallback_to_tesseract_on_api_error passed")
+
 if __name__ == "__main__":
     test_homepage()
     test_errors_sample_file()
@@ -357,6 +444,8 @@ if __name__ == "__main__":
     test_text_message_fio_position_parsing()
     test_seven_fields_extraction()
     test_file_and_text_reconciliation_no_duplicates()
+    test_ai_toggle_and_mocked_execution()
+    test_ai_fallback_to_tesseract_on_api_error()
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")
 
 

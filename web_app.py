@@ -255,6 +255,153 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
       margin-top: 0.35rem;
     }}
 
+    /* AI Mode Toggle Card & Switch */
+    .ai-mode-card {{
+      background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+      border: 1px solid #CBD5E1;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 1rem;
+      transition: all 0.25s ease;
+    }}
+
+    .ai-mode-card.active {{
+      background: linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%);
+      border-color: #86EFAC;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.12);
+    }}
+
+    .ai-mode-header {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }}
+
+    .ai-mode-info {{
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }}
+
+    .ai-mode-title {{
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #1E293B;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }}
+
+    .ai-mode-subtitle {{
+      font-size: 0.72rem;
+      color: #64748B;
+    }}
+
+    .switch-wrapper {{
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }}
+
+    .switch {{
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }}
+
+    .switch input {{
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }}
+
+    .slider {{
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #CBD5E1;
+      transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 24px;
+    }}
+
+    .slider:before {{
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }}
+
+    input:checked + .slider {{
+      background-color: #10B981;
+    }}
+
+    input:checked + .slider:before {{
+      transform: translateX(20px);
+    }}
+
+    .ai-badge {{
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      border: 1px solid #E2E8F0;
+      background: #FFFFFF;
+      color: #475569;
+      white-space: nowrap;
+    }}
+
+    .ai-badge.active {{
+      background: #DCFCE7;
+      color: #166534;
+      border-color: #86EFAC;
+    }}
+
+    .ai-key-drawer {{
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px dashed #CBD5E1;
+      display: none;
+    }}
+
+    .ai-key-drawer.open {{
+      display: block;
+    }}
+
+    .ai-key-input-group {{
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+      margin-top: 0.35rem;
+    }}
+
+    .ai-key-toggle-btn {{
+      background: #FFFFFF;
+      border: 1px solid var(--psg-gray-border);
+      border-radius: 6px;
+      padding: 0.55rem 0.65rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: #64748B;
+      flex-shrink: 0;
+    }}
+
+    .ai-key-toggle-btn:hover {{
+      background: #F1F5F9;
+      color: #1E293B;
+    }}
+
     /* Multi-file List */
     .files-list-container {{
       margin-top: 0.75rem;
@@ -736,6 +883,40 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
       <div class="card-body">
         <form id="processForm" onsubmit="handleFormSubmit(event)">
           
+          <!-- AI Vision Switch Banner -->
+          <div class="ai-mode-card" id="aiModeCard">
+            <div class="ai-mode-header">
+              <div class="ai-mode-info">
+                <div class="ai-mode-title">
+                  <span>🧠 Распознавание через ИИ (Vision)</span>
+                </div>
+                <div class="ai-mode-subtitle">GPT-4o-mini для точного чтения фото СНИЛС, паспортов, патентов и почерка</div>
+              </div>
+              <div class="switch-wrapper">
+                <span class="ai-badge" id="aiStatusBadge">⚡ Tesseract OCR</span>
+                <label class="switch" title="Включить / выключить распознавание через ИИ">
+                  <input type="checkbox" id="useAiToggle" onchange="toggleAiMode(this.checked)">
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <!-- API Key input (opens when AI toggle is ON) -->
+            <div class="ai-key-drawer" id="aiKeyDrawer">
+              <div class="form-label" style="margin-bottom: 0.25rem;">
+                <span>Ключ OpenAI API (или Proxy / VseGPT):</span>
+                <span style="font-weight: normal; color: #64748B; font-size: 0.7rem;">хранится в вашем браузере</span>
+              </div>
+              <div class="ai-key-input-group">
+                <input type="password" class="form-input" id="openaiApiKeyInput" placeholder="sk-proj-... (если пусто, используется .env сервера)" oninput="saveApiKey(this.value)">
+                <button type="button" class="ai-key-toggle-btn" onclick="toggleKeyVisibility()" id="toggleKeyVisibilityBtn" title="Показать/скрыть ключ">👁️</button>
+              </div>
+              <div style="font-size: 0.7rem; color: #64748B; margin-top: 0.35rem; line-height: 1.3;">
+                💡 Если ключ уже настроен в <code>.env</code> на сервере, поле можно оставить пустым. При выключении тумблера софт мгновенно вернется к локальному Tesseract OCR без обращения к внешним серверам.
+              </div>
+            </div>
+          </div>
+
           <!-- Tab 1: Multi-File Upload -->
           <div id="tabFile" class="tab-pane active">
             <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
@@ -861,7 +1042,10 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
       <div class="card" id="resultsCard">
         <div class="card-header">
           <div class="card-title">🔍 Отчет аудита и комментарии к заявке</div>
-          <span id="statusBadge" class="audit-badge badge-warning" style="display: none;">Требуется внимание</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span id="engineBadge" class="audit-badge" style="display: none; background: #F1F5F9; color: #334155; border: 1px solid #CBD5E1;"></span>
+            <span id="statusBadge" class="audit-badge badge-warning" style="display: none;">Требуется внимание</span>
+          </div>
         </div>
         <div class="card-body">
           
@@ -1134,6 +1318,65 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
       this.value = formatted;
     }});
 
+    // AI Toggle & LocalStorage persistence
+    function initAiMode() {{
+      const savedAi = localStorage.getItem('psg_use_ai');
+      const savedKey = localStorage.getItem('psg_openai_key') || '';
+      
+      const toggle = document.getElementById('useAiToggle');
+      const keyInput = document.getElementById('openaiApiKeyInput');
+      
+      if (savedKey) {{
+        keyInput.value = savedKey;
+      }}
+      
+      // Default to true if user previously enabled it or saved key exists, else false
+      const isAiOn = (savedAi === 'true') || (savedAi === null && savedKey.length > 0);
+      toggle.checked = isAiOn;
+      updateAiModeUI(isAiOn);
+    }}
+
+    function toggleAiMode(checked) {{
+      localStorage.setItem('psg_use_ai', checked ? 'true' : 'false');
+      updateAiModeUI(checked);
+    }}
+
+    function updateAiModeUI(checked) {{
+      const card = document.getElementById('aiModeCard');
+      const badge = document.getElementById('aiStatusBadge');
+      const drawer = document.getElementById('aiKeyDrawer');
+      
+      if (checked) {{
+        card.classList.add('active');
+        badge.classList.add('active');
+        badge.textContent = '🟢 ИИ активен (GPT-4o-mini)';
+        drawer.classList.add('open');
+      }} else {{
+        card.classList.remove('active');
+        badge.classList.remove('active');
+        badge.textContent = '⚡ Локальный Tesseract';
+        drawer.classList.remove('open');
+      }}
+    }}
+
+    function saveApiKey(val) {{
+      localStorage.setItem('psg_openai_key', val.trim());
+    }}
+
+    function toggleKeyVisibility() {{
+      const input = document.getElementById('openaiApiKeyInput');
+      const btn = document.getElementById('toggleKeyVisibilityBtn');
+      if (input.type === 'password') {{
+        input.type = 'text';
+        btn.textContent = '🙈';
+      }} else {{
+        input.type = 'password';
+        btn.textContent = '👁️';
+      }}
+    }}
+
+    document.addEventListener('DOMContentLoaded', initAiMode);
+
     async function handleFormSubmit(e) {{
       e.preventDefault();
       
@@ -1182,6 +1425,14 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
       formData.append('has_photo', document.getElementById('docPhoto').checked);
       formData.append('has_certificate', document.getElementById('docCertificate').checked);
 
+      // AI Vision options
+      const useAi = document.getElementById('useAiToggle').checked;
+      const apiKey = document.getElementById('openaiApiKeyInput').value.trim();
+      formData.append('use_ai', useAi);
+      if (apiKey) {{
+        formData.append('openai_api_key', apiKey);
+      }}
+
       try {{
         const response = await fetch('/api/process', {{
           method: 'POST',
@@ -1213,6 +1464,23 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
       document.getElementById('statPrograms').textContent = data.programs_count;
       document.getElementById('statRows').textContent = data.total_enrollments;
       document.getElementById('statYellow').textContent = data.audit.warnings_count;
+
+      // Engine badge
+      const engineBadge = document.getElementById('engineBadge');
+      if (engineBadge && data.ocr_engine) {{
+        engineBadge.style.display = 'inline-block';
+        if (data.ocr_engine.includes('OpenAI')) {{
+          engineBadge.style.backgroundColor = '#DCFCE7';
+          engineBadge.style.color = '#15803D';
+          engineBadge.style.borderColor = '#86EFAC';
+          engineBadge.textContent = '🤖 ' + data.ocr_engine;
+        }} else {{
+          engineBadge.style.backgroundColor = '#F1F5F9';
+          engineBadge.style.color = '#475569';
+          engineBadge.style.borderColor = '#CBD5E1';
+          engineBadge.textContent = '⚡ ' + data.ocr_engine;
+        }}
+      }}
 
       const badge = document.getElementById('statusBadge');
       badge.style.display = 'inline-block';
@@ -1353,7 +1621,9 @@ async def process_api(
     position: Optional[str] = Form(None),
     has_diploma: Optional[bool] = Form(False),
     has_photo: Optional[bool] = Form(False),
-    has_certificate: Optional[bool] = Form(False)
+    has_certificate: Optional[bool] = Form(False),
+    use_ai: Optional[bool] = Form(False),
+    openai_api_key: Optional[str] = Form(None)
 ):
     saved_file_paths = []
     
@@ -1382,7 +1652,9 @@ async def process_api(
             input_file=saved_file_paths if saved_file_paths else None,
             raw_text=raw_text if raw_text else None,
             output_file=None,
-            manual_overrides=manual_overrides
+            manual_overrides=manual_overrides,
+            use_ai=bool(use_ai),
+            openai_api_key=openai_api_key if openai_api_key else None
         )
 
         if result.get("success") and result.get("output_file"):

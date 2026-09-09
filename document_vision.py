@@ -431,13 +431,28 @@ def parse_diploma_text(text: str) -> Dict[str, Any]:
         "raw_text": text
     }
 
-def parse_document_image(image_path: str) -> Dict[str, Any]:
+def parse_document_image(
+    image_path: str,
+    use_ai: bool = False,
+    openai_api_key: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Main entry point for extracting data from an image file.
-    Always returns a structured record so that processing never fails.
-    Uses multi-pass OCR (card crop + tight crop + full image) with checksum validation
-    and OCR error correction to guarantee flawless extraction even for photos on busy backgrounds.
+    Supports:
+    - AI Vision (OpenAI GPT-4o-mini / GPT-4o) when use_ai=True
+    - Local multi-pass Tesseract OCR (with error correction) when use_ai=False or as fallback
     """
+    if use_ai:
+        try:
+            import ai_vision
+            ai_res = ai_vision.analyze_document_with_ai(image_path, api_key=openai_api_key)
+            if ai_res.get("success"):
+                return ai_res
+            else:
+                print(f"⚠️ [Vision AI] {ai_res.get('error')}. Откат на локальный Tesseract OCR...")
+        except Exception as e:
+            print(f"⚠️ [Vision AI Error] {e}. Откат на локальный Tesseract OCR...")
+
     ext = os.path.splitext(image_path)[1].lower()
     if ext == '.heic':
         import doc_reader
@@ -548,4 +563,5 @@ def parse_document_image(image_path: str) -> Dict[str, Any]:
         else:
             final_record["fio"] = f"Слушатель (по фото {final_record['type']})"
 
+    final_record["engine"] = "Локальный Tesseract OCR"
     return final_record

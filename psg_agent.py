@@ -22,12 +22,16 @@ def process_application(
     input_file: Optional[Union[str, List[str]]] = None,
     raw_text: Optional[str] = None,
     output_file: Optional[str] = None,
-    manual_overrides: Optional[Dict[str, Any]] = None
+    manual_overrides: Optional[Dict[str, Any]] = None,
+    use_ai: bool = False,
+    openai_api_key: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Processes an incoming application file(s) or text and generates 1C Excel spreadsheet.
+    Supports AI Vision (OpenAI GPT-4o-mini) or local Tesseract OCR.
     """
     manual_overrides = manual_overrides or {}
+    engines_used = set()
     
     input_files_list = []
     if isinstance(input_file, list):
@@ -46,7 +50,9 @@ def process_application(
             if not os.path.exists(fpath):
                 continue
             names.append(os.path.basename(fpath))
-            parsed = doc_reader.parse_incoming_application(fpath)
+            parsed = doc_reader.parse_incoming_application(fpath, use_ai=use_ai, openai_api_key=openai_api_key)
+            if parsed.get('engine'):
+                engines_used.add(parsed['engine'])
             if not detected_title and parsed.get('title'):
                 detected_title = parsed.get('title')
             raw_students.extend(parsed.get('students', []))
@@ -291,6 +297,7 @@ def process_application(
     wb.save(output_file)
     
     total_enrollments = sum(len(p['students']) for p in grouped_programs.values())
+    ocr_engine_label = "OpenAI Vision (GPT-4o-mini)" if any("OpenAI" in str(e) for e in engines_used) else "Локальный Tesseract OCR"
     
     return {
         "success": True,
@@ -298,6 +305,7 @@ def process_application(
         "output_file": output_file,
         "output_filename": os.path.basename(output_file),
         "application_title": app_title,
+        "ocr_engine": ocr_engine_label,
         "unique_students": len(raw_students),
         "total_enrollments": total_enrollments,
         "programs_count": len(grouped_programs),
