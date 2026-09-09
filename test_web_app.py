@@ -240,6 +240,111 @@ def test_snils_ocr_edge_cases():
     assert date_res == "12.04.1983", f"Expected 12.04.1983, got {date_res}"
     print("✓ test_snils_ocr_edge_cases passed")
 
+def test_text_message_fio_position_parsing():
+    """
+    Test user request:
+    1.Абрамов Антон Александрович, Монтажник
+    2. Федотов Илья Андреевич, Бетонщик
+    Must parse FIO cleanly without swallowing Position into FIO!
+    """
+    import doc_reader
+    raw_text = """
+    1.Абрамов Антон Александрович, Монтажник
+    2. Федотов Илья Андреевич, Бетонщик
+    """
+    res = doc_reader.parse_raw_text_application(raw_text)
+    students = res.get("students", [])
+    assert len(students) == 2, f"Expected 2 students, got {len(students)}"
+    
+    assert students[0]["fio_nom"] == "Абрамов Антон Александрович", f"Expected Абрамов Антон Александрович, got {students[0]['fio_nom']}"
+    assert students[0]["position"] == "Монтажник", f"Expected Монтажник, got {students[0]['position']}"
+    assert "Монтажник" not in students[0]["fio_nom"]
+    
+    assert students[1]["fio_nom"] == "Федотов Илья Андреевич", f"Expected Федотов Илья Андреевич, got {students[1]['fio_nom']}"
+    assert students[1]["position"] == "Бетонщик", f"Expected Бетонщик, got {students[1]['position']}"
+    assert "Бетонщик" not in students[1]["fio_nom"]
+    print("✓ test_text_message_fio_position_parsing passed")
+
+def test_seven_fields_extraction():
+    """
+    Test extraction of all 7 fields from a raw message:
+    ФИО, Должность, Пол, Дата рождения, СНИЛС, сроки обучения, контакты.
+    """
+    import doc_reader
+    line = "1. Абрамов Антон Александрович, Монтажник, муж, 12.04.1983, 094-314-268 64, 01.09.2026 - 15.09.2026, +7 (999) 123-45-67"
+    stud = doc_reader.parse_student_line(line)
+    assert stud is not None
+    assert stud["fio_nom"] == "Абрамов Антон Александрович"
+    assert stud["position"] == "Монтажник"
+    assert stud["gender"] == "М"
+    assert stud["birth_date"] == "12.04.1983"
+    assert stud["snils"] == "094-314-268 64"
+    assert stud["study_dates"] == "01.09.2026 - 15.09.2026"
+    assert "+7 (999) 123-45-67" in stud["contacts"]
+    print("✓ test_seven_fields_extraction passed")
+
+def test_file_and_text_reconciliation_no_duplicates():
+    """
+    Test reconciliation between uploaded document (Abramov SNILS photo) and text message:
+    1.Абрамов Антон Александрович, Монтажник
+    2. Федотов Илья Андреевич, Бетонщик
+    Must merge Abramov's position from text with his SNILS & birth date from the document,
+    and add Fedotov as the 2nd student without duplicating Abramov!
+    """
+    sample_img = "Исходники/snils_photo_sample.jpg"
+    assert os.path.exists(sample_img), f"Sample image {sample_img} not found"
+    
+    with open(sample_img, "rb") as f:
+        files = [("files", ("snils_photo_sample.jpg", f, "image/jpeg"))]
+        data = {
+            "raw_text": "1.Абрамов Антон Александрович, Монтажник\n2. Федотов Илья Андреевич, Бетонщик",
+            "program": "ОТ (Б+СИЗ+ПП)",
+            "study_dates": "01.09.2026 - 15.09.2026"
+        }
+        res = client.post("/api/process", files=files, data=data)
+        
+    assert res.status_code == 200, f"Error: {res.text}"
+    jdata = res.json()
+    assert jdata["success"] is True
+    assert jdata["unique_students"] == 2, f"Expected 2 unique students, got {jdata['unique_students']}"
+    
+    # Check Abramov
+    abramov = [s for s in jdata["students_summary"] if "Абрамов" in s["fio"]][0]
+    assert abramov["position"] == "Монтажник"
+    assert abramov["snils"] == "094-314-268 64"
+    assert abramov["birth_date"] == "12.04.1983"
+    
+    # Check Fedotov
+    fedotov = [s for s in jdata["students_summary"] if "Федотов" in s["fio"]][0]
+    assert fedotov["position"] == "Бетонщик"
+    
+    # Verify Excel file contents
+    out_file = os.path.join("output_1c", jdata["output_filename"])
+    wb = openpyxl.load_workbook(out_file)
+    ws = wb["Лист_1"]
+    
+    # Find rows for Abramov and Fedotov
+    found_abramov = False
+    found_fedotov = False
+    for r in range(4, ws.max_row + 1):
+        nom_fio = ws.cell(r, 2).value
+        dat_fio = ws.cell(r, 3).value
+        pos = ws.cell(r, 4).value
+        if nom_fio == "Абрамов Антон Александрович":
+            found_abramov = True
+            assert pos == "Монтажник", f"Expected Монтажник in row {r}, got {pos}"
+            assert dat_fio == "Абрамову Антону Александровичу"
+            assert ws.cell(r, 6).value == "12.04.1983"
+            assert ws.cell(r, 7).value == "094-314-268 64"
+        elif nom_fio == "Федотов Илья Андреевич":
+            found_fedotov = True
+            assert pos == "Бетонщик", f"Expected Бетонщик in row {r}, got {pos}"
+            assert dat_fio == "Федотову Илье Андреевичу"
+            
+    assert found_abramov is True, "Abramov row not found in Excel"
+    assert found_fedotov is True, "Fedotov row not found in Excel"
+    print("✓ test_file_and_text_reconciliation_no_duplicates passed")
+
 if __name__ == "__main__":
     test_homepage()
     test_errors_sample_file()
@@ -249,6 +354,9 @@ if __name__ == "__main__":
     test_multi_ot_sequential_no_violations()
     test_real_snils_photo_ocr()
     test_snils_ocr_edge_cases()
+    test_text_message_fio_position_parsing()
+    test_seven_fields_extraction()
+    test_file_and_text_reconciliation_no_duplicates()
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")
 
 

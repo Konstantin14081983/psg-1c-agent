@@ -17,6 +17,8 @@ import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
 import openpyxl
+import linguistics
+import program_matcher
 
 def convert_heic_to_jpeg(heic_path: str) -> Optional[str]:
     """
@@ -169,14 +171,229 @@ def identify_columns(header_row: List[str]) -> Dict[str, int]:
             
     return col_map
 
+PATRONYMIC_ENDINGS = (
+    'ович', 'евич', 'ич', 'ыч',
+    'овна', 'евна', 'ична', 'инична', 'ычна',
+    'оглы', 'угли', 'улы', 'кызы', 'гызы'
+)
+
+def is_patronymic(word: str) -> bool:
+    """Checks if word has typical Russian or Central Asian patronymic ending."""
+    w = word.strip().lower()
+    return any(w.endswith(end) for end in PATRONYMIC_ENDINGS)
+
+def classify_text_part(part: str) -> str:
+    """Classifies an isolated phrase as 'program', 'position', or 'unknown'."""
+    p_lower = part.lower().strip()
+    
+    # 1. Definite program indicators
+    if any(prog_kw in p_lower for prog_kw in [
+        'охрана труда', 'охране труда', 'от (', 'пожар', 'птм', 'высот', 'озп', 
+        'эколог', 'бдд', 'перв', 'помощ', 'сиз', 'правила работы', 'минимум', 'дпп', 'пк '
+    ]):
+        return 'program'
+        
+    # 2. Definite profession / position indicators
+    if any(p_lower.endswith(suf) for suf in ['ник', 'щик', 'чик', 'тель', 'ер', 'арь', 'ист']) or any(kw in p_lower for kw in [
+        'монтаж', 'бетон', 'свар', 'строп', 'водител', 'слесар', 'инженер', 'мастер', 
+        'буриль', 'кранов', 'машинист', 'директор', 'начальник', 'специалист', 'рабоч', 'электрик', 'токарь'
+    ]):
+        return 'position'
+        
+    # 3. Catalog matching fallback
+    matched = program_matcher.match_programs(part)
+    if matched:
+        return 'program'
+        
+    return 'unknown'
+
+def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Parses a single line (or comma/tab/dash separated chunk) into structured student fields:
+    FIO, Position, Gender, Birth Date, SNILS, Study Dates, Contacts, Program.
+    """
+    line = raw_line.strip()
+    if not line:
+        return None
+        
+    # Strip leading list markers: '1.', '1)', '1 -', '*', '-'
+    line = re.sub(r'^\s*(?:\d+[\.\)\-:]|\([0-9]+\)|\*|\-)\s*', '', line).strip()
+    
+    # Check if line is purely program header / general text
+    line_lower = line.lower()
+    if any(line_lower.startswith(p) for p in ['программа', 'направление', 'курс', 'обучение по', 'охрана труда']) and len(line.split()) < 25 and not re.search(r'\d{3}[\s\-]\d{3}', line):
+        return None
+        
+    dates = ""
+    snils = ""
+    birth_date = ""
+    gender = ""
+    contacts = ""
+    fio = ""
+    position = ""
+    program = current_program or ""
+    
+    # 1. Extract study dates range (e.g. 01.09.2026 - 15.09.2026 or 01.09.2026 по 15.09.2026)
+    m_dates = re.search(r'(?:(?:сроки|период|даты(?:\s+обучения)?)[:\s]+)?\b(\d{2}\.\d{2}\.\d{4}\s*(?:[-—–]|по)\s*\d{2}\.\d{2}\.\d{4})\b', line, re.I)
+    if m_dates:
+        dates = m_dates.group(1).strip()
+        line = line[:m_dates.start()] + ' , ' + line[m_dates.end():]
+        
+    # 2. Extract SNILS (including optional 'СНИЛС:' prefix)
+    m_snils = re.search(r'(?:снилс[:\s]+)?\b(\d{3}[\s\-]\d{3}[\s\-]\d{3}[\s\-]?\d{2}|\d{11})\b', line, re.I)
+    if m_snils:
+        snils_cand = m_snils.group(1).strip()
+        snils_clean, ok, _ = linguistics.validate_and_format_snils(snils_cand)
+        snils = snils_clean if ok else snils_cand
+        line = line[:m_snils.start()] + ' , ' + line[m_snils.end():]
+        
+    # 3. Extract Contacts (email, phone)
+    m_email = re.search(r'(?:(?:email|e-mail|почта)[:\s]+)?\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b', line, re.I)
+    if m_email:
+        email = m_email.group(1).strip()
+        contacts = email
+        line = line[:m_email.start()] + ' , ' + line[m_email.end():]
+        
+    m_phone = re.search(r'(?:(?:тел(?:ефон)?|тел\.)[:\s]+)?((?:\+7|8)[\s\-\(]*\d{3}[\s\-\)]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2})\b', line, re.I)
+    if m_phone:
+        phone = m_phone.group(1).strip()
+        contacts = f'{contacts}, {phone}'.strip(', ') if contacts else phone
+        line = line[:m_phone.start()] + ' , ' + line[m_phone.end():]
+        
+    # 4. Extract Birth Date
+    # 4a. Verbal Russian date with optional place of birth: e.g. 22 АВГУСТА 2005 ГОДА Г. НОВОСИБИРСК
+    m_vdate = re.search(r'(?:(?:д\.?р\.?|рожд\.?|дата\s+рождения)[:\s]+)?\b(\d{1,2}\s+[а-яА-ЯёЁ]{3,12}\s+\d{4}(?:\s*г(?:ода|\.)?)?(?:\s*г(?:ород|\.)?\s+[а-яА-ЯёЁ\-]+)?)\b', line, re.I)
+    if m_vdate:
+        d_norm, ok, _ = linguistics.normalize_date(m_vdate.group(1))
+        birth_date = d_norm if ok else m_vdate.group(1)
+        line = line[:m_vdate.start()] + ' , ' + line[m_vdate.end():]
+    else:
+        # 4b. Numeric date
+        m_ndate = re.search(r'(?:(?:д\.?р\.?|рожд\.?|дата\s+рождения)[:\s]+)?\b(\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4})\b', line, re.I)
+        if m_ndate:
+            d_norm, ok, _ = linguistics.normalize_date(m_ndate.group(1))
+            birth_date = d_norm if ok else m_ndate.group(1)
+            line = line[:m_ndate.start()] + ' , ' + line[m_ndate.end():]
+            
+    # 5. Extract Gender
+    m_gender = re.search(r'(?:пол[:\s]+)?\b(муж(?:ской)?|жен(?:ский)?)\b', line, re.I)
+    if m_gender:
+        g_val = m_gender.group(1).lower()
+        gender = 'М' if 'муж' in g_val else 'Ж'
+        line = line[:m_gender.start()] + ' , ' + line[m_gender.end():]
+    else:
+        m_gshort = re.search(r'(?:^|[\,\;])\s*(?:пол[:\s]+)?([мж])\s*(?:$|[\,\;])', line, re.I)
+        if m_gshort:
+            gender = m_gshort.group(1).upper()
+            line = line[:m_gshort.start()] + ' , ' + line[m_gshort.end():]
+            
+    # 6. Check explicit labeled fields
+    m_pos_label = re.search(r'(?:должност[ьи]|професси[яи]|долж\.|проф\.)[:\s]+([^,;\n]+)', line, re.I)
+    if m_pos_label:
+        position = m_pos_label.group(1).strip()
+        line = line[:m_pos_label.start()] + ' , ' + line[m_pos_label.end():]
+        
+    m_fio_label = re.search(r'(?:фио|слушатель|работник|сотрудник)[:\s]+([^,;\n]+)', line, re.I)
+    if m_fio_label:
+        fio = m_fio_label.group(1).strip()
+        line = line[:m_fio_label.start()] + ' , ' + line[m_fio_label.end():]
+        
+    m_prog_label = re.search(r'(?:программ[аы]|направлени[ея]|курс)[:\s]+([^,;\n]+)', line, re.I)
+    if m_prog_label:
+        program = m_prog_label.group(1).strip()
+        line = line[:m_prog_label.start()] + ' , ' + line[m_prog_label.end():]
+        
+    # 7. Analyze remaining parts
+    line = re.sub(r'[,;\t|]+', ',', line)
+    raw_parts = [p.strip() for p in re.split(r',|(?:\s+[-—–]\s+)', line) if p.strip()]
+    
+    parts = []
+    for p in raw_parts:
+        p_clean = p.strip(' ,;.')
+        if not p_clean:
+            continue
+        # Remove stray label residues or city markers
+        if re.match(r'^(?:г\.|город)\s+[а-яА-ЯёЁ\-]+$', p_clean, re.I):
+            continue
+        if re.match(r'^(?:снилс|пол|тел|email|почта|д\.?р\.?|рожд\.?)[:\s]*$', p_clean, re.I):
+            continue
+        parts.append(p_clean)
+        
+    if not fio:
+        for i, part in enumerate(parts):
+            words = part.split()
+            # 3 words with patronymic at index 2
+            if len(words) == 3 and is_patronymic(words[2]) and all(w[0].isupper() for w in words if w.isalpha()):
+                fio = part
+                parts.pop(i)
+                break
+            # 2 words capitalized
+            elif len(words) == 2 and all(w[0].isupper() for w in words if w.isalpha()):
+                fio = part
+                parts.pop(i)
+                break
+            # 4+ words in single part without separators: e.g. 'Абрамов Антон Александрович Монтажник'
+            elif len(words) >= 4:
+                pat_idx = -1
+                for w_i, w in enumerate(words):
+                    if is_patronymic(w):
+                        pat_idx = w_i
+                        break
+                if pat_idx in (1, 2):
+                    fio = ' '.join(words[:pat_idx+1])
+                    remainder_pos = ' '.join(words[pat_idx+1:])
+                    if remainder_pos and not position:
+                        position = remainder_pos
+                    parts.pop(i)
+                    break
+                elif pat_idx > 2 and pat_idx == len(words) - 1:
+                    fio = ' '.join(words[pat_idx-2:pat_idx+1])
+                    remainder_pos = ' '.join(words[:pat_idx-2])
+                    if remainder_pos and not position:
+                        position = remainder_pos
+                    parts.pop(i)
+                    break
+                    
+    # Assign remaining parts to position or program
+    for part in parts:
+        c = classify_text_part(part)
+        if c == 'program' and not program:
+            program = part
+        elif c == 'position' and not position:
+            position = part
+        elif not position:
+            position = part
+        elif not program:
+            program = part
+            
+    if not fio:
+        return None
+        
+    # If gender not specified, infer from FIO
+    if not gender and fio:
+        f_words = fio.split()
+        if len(f_words) >= 2:
+            gender = linguistics.infer_gender(f_words[0], f_words[1], f_words[2] if len(f_words) > 2 else "")
+            
+    return {
+        "fio_nom": fio,
+        "fio_dat": "",
+        "position": position,
+        "gender": gender,
+        "birth_date": birth_date,
+        "snils": snils,
+        "study_dates": dates,
+        "contacts": contacts,
+        "program": program or current_program or ""
+    }
+
 def parse_raw_text_application(raw_text: str) -> Dict[str, Any]:
     """
     Parses plain text messages (e.g. from WhatsApp, Telegram, Email, copy-pasted blocks).
     Supports:
-    - Tab-delimited rows (from Excel)
-    - Comma / semicolon delimited rows
-    - Numbered lists: '1. Иванов Иван Иванович, 12.05.1985, 123-456-789 00, монтажник...'
-    - Block format: ФИО: ..., СНИЛС: ..., Должность: ...
+    - Numbered lists: '1. Абрамов Антон Александрович, Монтажник'
+    - Separated rows: FIO, Position, Birth date, SNILS, Dates, Contacts
+    - Multi-line block format: ФИО: ..., Должность: ...
     """
     lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
     if not lines:
@@ -196,83 +413,154 @@ def parse_raw_text_application(raw_text: str) -> Dict[str, Any]:
         if line == app_title:
             continue
             
-        # Check if line indicates a program header (skip if line is a student record)
+        # Check if line indicates a program header
         line_lower = line.lower()
-        is_student_row = (',' in line and len(line.split(',')) >= 3) or ('\t' in line) or bool(re.search(r'\d{3}[\s\-]\d{3}[\s\-]\d{3}', line))
+        is_student_row = (',' in line and len(line.split(',')) >= 2) or ('\t' in line) or bool(re.search(r'\d{3}[\s\-]\d{3}[\s\-]\d{3}', line))
         if not is_student_row and any(kw in line_lower for kw in ['программа', 'направление', 'курс', 'обучение по', 'охрана труда']) and len(line.split()) < 25:
-            # Looks like a program header
             clean_prog = re.sub(r'^(программа|направление|курс)[:\s\-]*', '', line, flags=re.IGNORECASE).strip()
             if clean_prog:
                 current_program = clean_prog
                 continue
                 
-        # Try tab separation
-        if '\t' in line:
-            parts = [p.strip() for p in line.split('\t')]
-        elif ';' in line:
-            parts = [p.strip() for p in line.split(';')]
-        else:
-            # Try comma separation if contains commas and multiple parts
-            comma_parts = [p.strip() for p in line.split(',')]
-            if len(comma_parts) >= 3:
-                parts = comma_parts
-            else:
-                parts = [line]
-                
-        # Extract fields from parts
-        fio = ""
-        fio_dat = ""
-        snils = ""
-        birth_date = ""
-        position = ""
-        prog = current_program
-        dates = ""
-        contacts = ""
-        
-        # Strip leading numbers: e.g. "1. Иванов" or "1)"
-        if parts and re.match(r'^\d+[\.\)\s]', parts[0]):
-            parts[0] = re.sub(r'^\d+[\.\)\s]+', '', parts[0]).strip()
-            
-        for part in parts:
-            p_clean = part.strip()
-            # Check for SNILS
-            if re.search(r'\d{3}[\s\-]\d{3}[\s\-]\d{3}[\s\-]\d{2}|\d{11}', p_clean):
-                snils = p_clean
-            # Check for Date (numeric or verbal)
-            elif re.search(r'\b\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}\b|\b\d{1,2}\s+[а-яА-ЯёЁ]{3,12}\s+\d{4}', p_clean):
-                if not birth_date:
-                    birth_date = p_clean
-                else:
-                    dates = p_clean
-            # Check for email or phone
-            elif '@' in p_clean or re.search(r'\+7|\b8\d{10}\b', p_clean):
-                contacts = p_clean
-            # Check for FIO: 2-3 Cyrillic words
-            elif not fio and len(p_clean.split()) in (2, 3, 4) and all(w[0].isupper() for w in p_clean.split() if w.isalpha()):
-                fio = p_clean
-            # Otherwise could be position or program
-            elif not position and len(p_clean.split()) <= 6:
-                position = p_clean
-            elif not prog:
-                prog = p_clean
-                
-        if fio:
-            students.append({
-                "fio_nom": fio,
-                "fio_dat": fio_dat,
-                "position": position,
-                "gender": "",
-                "birth_date": birth_date,
-                "snils": snils,
-                "study_dates": dates,
-                "contacts": contacts,
-                "program": prog or current_program
-            })
+        stud = parse_student_line(line, current_program)
+        if stud:
+            students.append(stud)
             
     return {
         "title": app_title,
         "students": students
     }
+
+def reconcile_student_records(file_students: List[Dict[str, Any]], text_students: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Reconciles and merges student records from uploaded files (e.g. SNILS photos, scans)
+    with student records from text messages (e.g. FIO, Position).
+    Avoids duplicate rows and enriches verified file data with manager text instructions.
+    """
+    if not file_students:
+        return list(text_students)
+    if not text_students:
+        return list(file_students)
+        
+    merged = [dict(s) for s in file_students]
+    matched_file_indices = set()
+    unmatched_text_students = []
+    
+    for t_stud in text_students:
+        t_fio = (t_stud.get('fio_nom') or '').strip().lower()
+        t_snils = re.sub(r'\D', '', t_stud.get('snils') or '')
+        t_words = [w for w in t_fio.split() if len(w) > 1]
+        
+        matched_idx = -1
+        # 1. Match by SNILS if both have SNILS
+        if t_snils and len(t_snils) >= 9:
+            for idx, f_stud in enumerate(merged):
+                if idx in matched_file_indices:
+                    continue
+                f_snils = re.sub(r'\D', '', f_stud.get('snils') or '')
+                if f_snils and f_snils == t_snils:
+                    matched_idx = idx
+                    break
+                    
+        # 2. Match by exact normalized FIO
+        if matched_idx == -1 and t_fio and 'слушатель' not in t_fio:
+            for idx, f_stud in enumerate(merged):
+                if idx in matched_file_indices:
+                    continue
+                f_fio = (f_stud.get('fio_nom') or '').strip().lower()
+                if f_fio and f_fio == t_fio:
+                    matched_idx = idx
+                    break
+                    
+        # 3. Match by Surname + First Name (first 2 words)
+        if matched_idx == -1 and len(t_words) >= 2:
+            for idx, f_stud in enumerate(merged):
+                if idx in matched_file_indices:
+                    continue
+                f_fio = (f_stud.get('fio_nom') or '').strip().lower()
+                f_words = [w for w in f_fio.split() if len(w) > 1]
+                if len(f_words) >= 2 and t_words[0] == f_words[0] and t_words[1] == f_words[1]:
+                    matched_idx = idx
+                    break
+                    
+        # 4. Match by Surname if only one student with this surname exists in files
+        if matched_idx == -1 and len(t_words) >= 1:
+            matching_surnames = []
+            for idx, f_stud in enumerate(merged):
+                if idx in matched_file_indices:
+                    continue
+                f_fio = (f_stud.get('fio_nom') or '').strip().lower()
+                f_words = [w for w in f_fio.split() if len(w) > 1]
+                if f_words and f_words[0] == t_words[0]:
+                    matching_surnames.append(idx)
+            if len(matching_surnames) == 1:
+                matched_idx = matching_surnames[0]
+                
+        # 5. If exactly 1 file student with generic placeholder FIO
+        if matched_idx == -1 and len(merged) == 1:
+            f_fio = (merged[0].get('fio_nom') or '').strip().lower()
+            if 'слушатель' in f_fio:
+                matched_idx = 0
+                
+        if matched_idx != -1:
+            matched_file_indices.add(matched_idx)
+            target = merged[matched_idx]
+            # Position: text message position is explicitly entered by manager, takes precedence
+            if t_stud.get('position'):
+                target['position'] = t_stud['position']
+            # If target has generic FIO or shorter FIO and text has full FIO, update FIO
+            if ('слушатель' in (target.get('fio_nom') or '').lower() or len(target.get('fio_nom', '').split()) < len(t_stud.get('fio_nom', '').split())) and t_stud.get('fio_nom'):
+                target['fio_nom'] = t_stud['fio_nom']
+            # Enrich other missing fields
+            if not target.get('snils') and t_stud.get('snils'):
+                target['snils'] = t_stud['snils']
+            if not target.get('birth_date') and t_stud.get('birth_date'):
+                target['birth_date'] = t_stud['birth_date']
+            if not target.get('gender') and t_stud.get('gender'):
+                target['gender'] = t_stud['gender']
+            if not target.get('program') and t_stud.get('program'):
+                target['program'] = t_stud['program']
+            if not target.get('study_dates') and t_stud.get('study_dates'):
+                target['study_dates'] = t_stud['study_dates']
+            if not target.get('contacts') and t_stud.get('contacts'):
+                target['contacts'] = t_stud['contacts']
+        else:
+            unmatched_text_students.append(t_stud)
+            
+    # Phase 2: Match remaining unmatched text students with remaining placeholder file students
+    still_unmatched = []
+    for t_stud in unmatched_text_students:
+        matched_placeholder_idx = -1
+        for idx, f_stud in enumerate(merged):
+            if idx not in matched_file_indices and 'слушатель' in (f_stud.get('fio_nom') or '').lower():
+                matched_placeholder_idx = idx
+                break
+        if matched_placeholder_idx != -1:
+            matched_file_indices.add(matched_placeholder_idx)
+            target = merged[matched_placeholder_idx]
+            if t_stud.get('fio_nom'):
+                target['fio_nom'] = t_stud['fio_nom']
+            if t_stud.get('position'):
+                target['position'] = t_stud['position']
+            if not target.get('snils') and t_stud.get('snils'):
+                target['snils'] = t_stud['snils']
+            if not target.get('birth_date') and t_stud.get('birth_date'):
+                target['birth_date'] = t_stud['birth_date']
+            if not target.get('gender') and t_stud.get('gender'):
+                target['gender'] = t_stud['gender']
+            if not target.get('program') and t_stud.get('program'):
+                target['program'] = t_stud['program']
+            if not target.get('study_dates') and t_stud.get('study_dates'):
+                target['study_dates'] = t_stud['study_dates']
+            if not target.get('contacts') and t_stud.get('contacts'):
+                target['contacts'] = t_stud['contacts']
+        else:
+            still_unmatched.append(t_stud)
+            
+    merged.extend(still_unmatched)
+
+    return merged
+
 
 def parse_incoming_application(file_path: str) -> Dict[str, Any]:
     """

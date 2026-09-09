@@ -55,21 +55,25 @@ def process_application(
     if raw_text:
         # Check if raw_text contains student rows or supplementary manager instructions
         parsed_raw = doc_reader.parse_raw_text_application(raw_text)
-        if parsed_raw.get('students'):
+        text_students = parsed_raw.get('students', [])
+        if text_students:
             if not detected_title and parsed_raw.get('title'):
                 detected_title = parsed_raw.get('title')
-            raw_students.extend(parsed_raw.get('students', []))
+            if raw_students:
+                raw_students = doc_reader.reconcile_student_records(raw_students, text_students)
+            else:
+                raw_students.extend(text_students)
             if not input_files_list:
                 input_source_name = "Текстовое сообщение"
-        else:
-            # Extract supplementary manager instructions (position, program, dates)
-            supp = doc_reader.extract_supplementary_instructions(raw_text)
-            if supp.get('position') and not manual_overrides.get('position'):
-                manual_overrides['position'] = supp['position']
-            if supp.get('program') and not manual_overrides.get('program'):
-                manual_overrides['program'] = supp['program']
-            if supp.get('study_dates') and not manual_overrides.get('study_dates'):
-                manual_overrides['study_dates'] = supp['study_dates']
+                
+        # Also check for supplementary manager instructions (position, program, dates)
+        supp = doc_reader.extract_supplementary_instructions(raw_text)
+        if supp.get('position') and not manual_overrides.get('position'):
+            manual_overrides['position'] = supp['position']
+        if supp.get('program') and not manual_overrides.get('program'):
+            manual_overrides['program'] = supp['program']
+        if supp.get('study_dates') and not manual_overrides.get('study_dates'):
+            manual_overrides['study_dates'] = supp['study_dates']
 
     if not input_files_list and not raw_text:
         raise ValueError("Необходимо указать input_file или raw_text")
@@ -125,9 +129,9 @@ def process_application(
         gender_raw = raw_s.get('gender', '')
         birth_raw = raw_s.get('birth_date', '')
         snils_raw = raw_s.get('snils', '')
-        pos_raw = manual_overrides.get('position') or raw_s.get('position', '')
-        prog_raw = manual_overrides.get('programs') or manual_overrides.get('program') or raw_s.get('program', '')
-        dates_raw = manual_overrides.get('study_dates') or raw_s.get('study_dates', '')
+        pos_raw = raw_s.get('position') or manual_overrides.get('position') or ''
+        prog_raw = raw_s.get('program') or manual_overrides.get('programs') or manual_overrides.get('program') or ''
+        dates_raw = raw_s.get('study_dates') or manual_overrides.get('study_dates') or ''
         contacts_raw = raw_s.get('contacts', '')
         
         # Linguistic & FIO processing (with anomaly and patronymic typo check)
