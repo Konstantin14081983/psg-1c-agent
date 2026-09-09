@@ -214,6 +214,32 @@ def test_real_snils_photo_ocr():
     assert "Монтажник" in stud["position"], f"Expected Монтажник, got {stud['position']}"
     print("✓ test_real_snils_photo_ocr passed")
 
+def test_snils_ocr_edge_cases():
+    import document_vision
+    
+    # 1. Test single-digit checksum repair (5 -> 6)
+    rep, ok = document_vision.repair_snils_checksum("094-314-258 64")
+    assert ok is True, "Checksum repair failed"
+    assert rep == "094-314-268 64", f"Expected 094-314-268 64, got {rep}"
+    
+    # 2. Test first name repair (Нтон -> Антон)
+    assert document_vision.correct_first_name("Нтон") == "Антон"
+    assert document_vision.correct_first_name("Нтн") == "Антон"
+    
+    # 3. Test broken lines FIO merging ('А' on separate line from 'НТОН')
+    fio_res = document_vision.extract_fio_candidates([
+        "Фио АБРАМОВ",
+        "А",
+        "НТОН",
+        "АЛЕКСАНДРОВИЧ"
+    ])
+    assert fio_res == "Абрамов Антон Александрович", f"Expected Абрамов Антон Александрович, got {fio_res}"
+    
+    # 4. Test birth date with noisy prefix/suffix
+    date_res = document_vision.extract_birth_date("ождения _12 апреля 1983 года МАИ")
+    assert date_res == "12.04.1983", f"Expected 12.04.1983, got {date_res}"
+    print("✓ test_snils_ocr_edge_cases passed")
+
 if __name__ == "__main__":
     test_homepage()
     test_errors_sample_file()
@@ -222,6 +248,8 @@ if __name__ == "__main__":
     test_verbal_birth_date()
     test_multi_ot_sequential_no_violations()
     test_real_snils_photo_ocr()
+    test_snils_ocr_edge_cases()
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")
+
 
 

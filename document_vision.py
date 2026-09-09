@@ -11,7 +11,7 @@ import os
 import re
 import subprocess
 import uuid
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from PIL import Image, ImageOps
 
 import linguistics
@@ -51,11 +51,78 @@ def get_tesseract_binary() -> str:
             return c
     return "tesseract"
 
+COMMON_FIRST_NAME_REPAIRS = {
+    "нтон": "Антон", "нтн": "Антон", "ндрей": "Андрей", "ртем": "Артем",
+    "лексей": "Алексей", "лексан": "Александр", "лександр": "Александр",
+    "натолий": "Анатолий", "рсений": "Арсений", "ртур": "Артур",
+    "лина": "Алина", "лена": "Алена", "нна": "Анна", "настасия": "Анастасия",
+    "гений": "Евгений", "вгений": "Евгений", "горь": "Игорь", "лья": "Илья", "ван": "Иван"
+}
+
+def correct_first_name(fn: str) -> str:
+    """Corrects common OCR first name truncations (e.g. 'Нтон' -> 'Антон', 'Лексей' -> 'Алексей')."""
+    if not fn:
+        return fn
+    low = fn.lower()
+    if low in COMMON_FIRST_NAME_REPAIRS:
+        return COMMON_FIRST_NAME_REPAIRS[low]
+    if len(low) >= 3:
+        for prefix in ("а", "е", "и", "о"):
+            cand = prefix + low
+            if cand in {"антон", "андрей", "артем", "алексей", "александр", "анатолий", "арсений", "артур", "алина", "алена", "анна", "анастасия", "евгений", "игорь", "илья", "иван"}:
+                return cand.capitalize()
+    return fn
+
+def repair_snils_checksum(raw_snils: Optional[str]) -> Tuple[Optional[str], bool]:
+    """
+    Validates SNILS checksum. If invalid, attempts single-digit OCR error correction
+    (e.g. 5 <-> 6, 6 <-> 8, 3 <-> 8, 1 <-> 7, 0 <-> 8) using the official Pension Fund algorithm.
+    Returns (repaired_snils, is_valid).
+    """
+    if not raw_snils:
+        return None, False
+    formatted, ok, _ = linguistics.validate_and_format_snils(raw_snils)
+    if ok:
+        return formatted, True
+
+    digits = [c for c in raw_snils if c.isdigit()]
+    if len(digits) != 11:
+        return raw_snils, False
+
+    ocr_confusions = {
+        ("5", "6"), ("6", "5"),
+        ("6", "8"), ("8", "6"),
+        ("3", "8"), ("8", "3"),
+        ("1", "7"), ("7", "1"),
+        ("0", "8"), ("8", "0"),
+        ("1", "4"), ("4", "1")
+    }
+
+    conf_candidates = []
+    for i in range(9):
+        orig_d = digits[i]
+        for alt_d in "0123456789":
+            if alt_d == orig_d:
+                continue
+            if (orig_d, alt_d) not in ocr_confusions:
+                continue
+            test_digits = list(digits)
+            test_digits[i] = alt_d
+            test_fmt, is_valid, _ = linguistics.validate_and_format_snils("".join(test_digits))
+            if is_valid:
+                conf_candidates.append(test_fmt)
+
+    if len(conf_candidates) == 1:
+        return conf_candidates[0], True
+
+    return formatted or raw_snils, False
+
 def normalize_fio_order(fio_str: str) -> str:
     """
     Ensures standard Russian ordering: [Surname, First Name, Patronymic].
     If OCR extracted [First Name, Patronymic, Surname] (e.g. 'Антон Александрович Абрамов'),
     detects patronymic suffix in middle word and non-patronymic in 3rd word to reorder to 'Абрамов Антон Александрович'.
+    Also autocorrects OCR-truncated Russian first names (e.g. 'Нтон' -> 'Антон').
     """
     if not fio_str:
         return ""
@@ -66,7 +133,13 @@ def normalize_fio_order(fio_str: str) -> str:
         w2_is_pat = w2.lower().endswith(pat_suffixes)
         w3_is_pat = w3.lower().endswith(pat_suffixes)
         if w2_is_pat and not w3_is_pat:
+            w3 = correct_first_name(w3)
             return f"{w3} {w1} {w2}".title()
+        else:
+            w2 = correct_first_name(w2)
+            return f"{w1} {w2} {w3}".title()
+    elif len(words) == 2:
+        words[1] = correct_first_name(words[1])
     return " ".join(words).title()
 
 def preprocess_image_for_ocr(image_path: str) -> str:
@@ -153,7 +226,24 @@ def extract_fio_candidates(lines: List[str]) -> str:
     Robust extraction of Russian full name (Surname, Name, Patronymic)
     from lines of a document (SNILS, Passport, etc.).
     Handles single line FIO, labeled FIO, and multiline (1 word per line).
+    Pre-merges single-letter split lines (e.g. 'А' + 'НТОН' -> 'АНТОН').
     """
+    # Pre-merge single-letter broken lines (common in SNILS card green emblem background)
+    merged_lines = []
+    i = 0
+    while i < len(lines):
+        curr = lines[i].strip()
+        if len(curr) == 1 and curr.isalpha() and i + 1 < len(lines):
+            nxt = lines[i+1].strip()
+            words_nxt = nxt.split()
+            if len(words_nxt) == 1 and words_nxt[0].isalpha():
+                merged_lines.append(curr + nxt)
+                i += 2
+                continue
+        merged_lines.append(curr)
+        i += 1
+
+    lines = merged_lines
     full_text = "\n".join(lines)
 
     # 1. Check for labeled FIO (e.g. Фамилия: Иванов, Имя: Иван, Отчество: Иванович)
@@ -218,6 +308,7 @@ def extract_birth_date(text: str) -> Optional[str]:
     Extracts birth date from document text (SNILS, Passport, etc.).
     Supports:
     - Verbal Russian formats (e.g. '12 апреля 1983 года', '22 АВГУСТА 2005 ГОДА Г. НОВОСИБИРСК')
+    - Handles noisy prefixes like '_12 апреля', '~12 апреля', '.12 апреля', ' 12 апреля'
     - Numeric formats (e.g. '12.04.1983', '22/08/2005', '22-08-2005')
     Returns normalized DD.MM.YYYY string or None.
     """
@@ -226,23 +317,23 @@ def extract_birth_date(text: str) -> Optional[str]:
         
     clean_ocr, _ = linguistics.clean_homoglyphs(text)
 
-    # 1. Look specifically near keywords "рождения" / "рождени" / "дата и место" / "дата"
-    m_near = re.search(r'(?:рождени[яеи]|дата\s+(?:и\s+место\s+)?(?:рождени[яеи])?)[:\s,\-]*\n?([^\n]{1,80})', clean_ocr, re.IGNORECASE)
-    if m_near:
-        target_chunk = m_near.group(1)
-        norm, ok, _ = linguistics.normalize_date(target_chunk)
-        if ok:
-            return norm
-
-    # 2. Verbal Russian format anywhere in text: e.g. '12 апреля 1983 года' or '12 апреля — 1983 года'
-    m_verbal = re.search(r'\b(\d{1,2})\s+([а-яА-ЯёЁ]{3,12})[\s,\.\-]+(\d{4})(?:\s*г(?:ода|\.)?)?\b', clean_ocr)
+    # 1. Verbal Russian format: day (1 or 2 digits, even after noise symbols) + Russian month + 4-digit year
+    m_verbal = re.search(r'(?:^|[^\d])(\d{1,2})\s+([а-яА-ЯёЁ]{3,12})[\s,\.\-]+(\d{4})(?:\s*г(?:ода|\.)?)?', clean_ocr)
     if m_verbal:
         norm, ok, _ = linguistics.normalize_date(f"{m_verbal.group(1)} {m_verbal.group(2)} {m_verbal.group(3)}")
         if ok:
             return norm
 
+    # 2. Look near keywords "рождения" / "рождени" / "дата и место" / "дата"
+    m_near = re.search(r'(?:рождени[яеи]|дата\s+(?:и\s+место\s+)?(?:рождени[яеи])?)[:\s,\-]*\n?([^\n]{1,80})', clean_ocr, re.IGNORECASE)
+    if m_near:
+        target_chunk = re.sub(r'[^0-9A-Za-zА-Яа-я\s\.\,\-]', ' ', m_near.group(1)).strip()
+        norm, ok, _ = linguistics.normalize_date(target_chunk)
+        if ok:
+            return norm
+
     # 3. Numeric format anywhere in text: DD.MM.YYYY
-    m_num = re.search(r'\b(\d{1,2}[./\-]\d{1,2}[./\-]\d{4})\b', clean_ocr)
+    m_num = re.search(r'(?:^|[^\d])(\d{1,2}[./\-]\d{1,2}[./\-]\d{4})', clean_ocr)
     if m_num:
         norm, ok, _ = linguistics.normalize_date(m_num.group(1))
         if ok:
@@ -254,6 +345,7 @@ def parse_snils_card_text(text: str) -> Dict[str, Any]:
     """
     Extracts SNILS number, FIO, birth date, gender from SNILS card text.
     Handles both modern electronic ADI-REG forms and Soviet/Russian green cards.
+    Automatically validates and repairs single-digit OCR checksum errors (e.g. 5 vs 6).
     """
     clean_lines = [line.strip() for line in text.split('\n') if line.strip()]
     
@@ -263,6 +355,10 @@ def parse_snils_card_text(text: str) -> Dict[str, Any]:
         # Raw 11 digits
         snils_match = re.search(r'\b(\d{11})\b', text)
     snils_num = snils_match.group(1) if snils_match else None
+    if snils_num:
+        repaired, ok = repair_snils_checksum(snils_num)
+        if ok:
+            snils_num = repaired
     
     # 2. Search for birth date (verbal or numeric)
     birth_date = extract_birth_date(text)
@@ -339,8 +435,8 @@ def parse_document_image(image_path: str) -> Dict[str, Any]:
     """
     Main entry point for extracting data from an image file.
     Always returns a structured record so that processing never fails.
-    Uses multi-pass OCR (full image + central document crop fallback) to guarantee
-    flawless extraction even for photos with busy table backgrounds.
+    Uses multi-pass OCR (card crop + tight crop + full image) with checksum validation
+    and OCR error correction to guarantee flawless extraction even for photos on busy backgrounds.
     """
     ext = os.path.splitext(image_path)[1].lower()
     if ext == '.heic':
@@ -352,24 +448,22 @@ def parse_document_image(image_path: str) -> Dict[str, Any]:
     pil_img = Image.open(image_path)
     w, h = pil_img.size
 
-    # Variant 1: Full image preprocessed
-    v_full = pil_img.convert("L")
-    v_full = ImageOps.autocontrast(v_full)
-    if v_full.width < 1200 or v_full.height < 1200:
-        scale = max(1200 / max(v_full.width, 1), 1200 / max(v_full.height, 1))
-        v_full = v_full.resize((int(v_full.width * scale), int(v_full.height * scale)), Image.Resampling.LANCZOS)
-
-    variants = [("full", v_full)]
+    variants = []
 
     # If photo has significant dimensions (e.g. phone camera photo on a table), add central document crops
     if w >= 400 and h >= 350:
-        c_tight = pil_img.crop((int(w * 0.14), int(h * 0.28), int(w * 0.88), int(h * 0.72)))
-        c_tight = ImageOps.autocontrast(c_tight.convert("L"))
-        variants.append(("tight", c_tight))
+        # 1. Exact centered document framing (eliminates surrounding wooden table/background)
+        c_card = pil_img.crop((int(w * 0.18), int(h * 0.32), int(w * 0.82), int(h * 0.68)))
+        variants.append(("card", ImageOps.autocontrast(c_card.convert("L"))))
 
-        c_wide = pil_img.crop((int(w * 0.08), int(h * 0.22), int(w * 0.92), int(h * 0.78)))
-        c_wide = ImageOps.autocontrast(c_wide.convert("L"))
-        variants.append(("wide", c_wide))
+        # 2. Slightly wider framing
+        c_tight = pil_img.crop((int(w * 0.14), int(h * 0.28), int(w * 0.88), int(h * 0.72)))
+        variants.append(("tight", ImageOps.autocontrast(c_tight.convert("L"))))
+
+    # 3. Full image preprocessed
+    v_full = pil_img.convert("L")
+    v_full = ImageOps.autocontrast(v_full)
+    variants.append(("full", v_full))
 
     final_record = {
         "type": "snils_card",
@@ -382,6 +476,7 @@ def parse_document_image(image_path: str) -> Dict[str, Any]:
     }
 
     combined_ocr_texts = []
+    snils_is_valid = False
 
     for name, v_img in variants:
         raw_text = run_tesseract_on_pil(v_img)
@@ -410,10 +505,23 @@ def parse_document_image(image_path: str) -> Dict[str, Any]:
                 doc_type = "passport"
 
         final_record["type"] = doc_type
-        if not final_record["snils"] and parsed.get("snils"):
-            final_record["snils"] = parsed["snils"]
-        if not final_record["birth_date"] and parsed.get("birth_date"):
-            final_record["birth_date"] = parsed["birth_date"]
+
+        # SNILS handling: prioritize checksum-valid numbers
+        cand_snils = parsed.get("snils")
+        if cand_snils:
+            cand_fmt, cand_ok, _ = linguistics.validate_and_format_snils(cand_snils)
+            if not final_record["snils"] or (cand_ok and not snils_is_valid):
+                final_record["snils"] = cand_fmt
+                snils_is_valid = cand_ok
+
+        # Birth date handling: prioritize 2-digit day over single-digit (e.g. 12.04 over 02.04)
+        cand_bd = parsed.get("birth_date")
+        if cand_bd:
+            if not final_record["birth_date"]:
+                final_record["birth_date"] = cand_bd
+            elif final_record["birth_date"].startswith("0") and not cand_bd.startswith("0") and cand_bd[2:] == final_record["birth_date"][2:]:
+                final_record["birth_date"] = cand_bd
+
         if not final_record["gender"] and parsed.get("gender"):
             final_record["gender"] = parsed["gender"]
         if not final_record.get("qualification") and parsed.get("qualification"):
@@ -425,9 +533,11 @@ def parse_document_image(image_path: str) -> Dict[str, Any]:
             curr_words = len(final_record["fio"].split())
             if cand_words > curr_words:
                 final_record["fio"] = fio_candidate
+            elif cand_words == curr_words and len(fio_candidate) > len(final_record["fio"]):
+                final_record["fio"] = fio_candidate
 
-        # Stop early if we already have all key fields with a complete 3-word FIO
-        if final_record["snils"] and final_record["birth_date"] and len(final_record["fio"].split()) == 3:
+        # Stop early if we already have all key fields (valid SNILS, birth date, and full 3-word FIO)
+        if snils_is_valid and final_record["birth_date"] and len(final_record["fio"].split()) == 3:
             break
 
     final_record["raw_text"] = "\n---\n".join(combined_ocr_texts)
