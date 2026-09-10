@@ -15,8 +15,62 @@ import re
 import json
 import base64
 import mimetypes
+import socket
+import urllib.request
+import urllib.error
 from typing import Dict, Any, Optional, List, Tuple
-import requests
+
+try:
+    import requests
+except ImportError:
+    requests = None
+
+class SimpleHTTPResponse:
+    """Lightweight response wrapper mimicking requests.Response for zero-dependency standard library fallback."""
+    def __init__(self, status_code: int, text: str):
+        self.status_code = status_code
+        self.text = text
+    def json(self):
+        return json.loads(self.text)
+
+def _http_get(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 8):
+    if requests is not None:
+        return requests.get(url, headers=headers, timeout=timeout)
+    req = urllib.request.Request(url, headers=headers or {}, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            status = resp.status
+            body = resp.read().decode("utf-8", errors="replace")
+            return SimpleHTTPResponse(status, body)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return SimpleHTTPResponse(e.code, body)
+    except (urllib.error.URLError, socket.timeout) as e:
+        if (hasattr(e, "reason") and isinstance(e.reason, socket.timeout)) or isinstance(e, socket.timeout):
+            raise TimeoutError(f"Таймаут соединения с {url}")
+        raise ConnectionError(f"Сетевая ошибка: {e}")
+
+def _http_post(url: str, headers: Optional[Dict[str, str]] = None, json_data: Optional[Dict[str, Any]] = None, timeout: int = 30):
+    if requests is not None:
+        return requests.post(url, headers=headers, json=json_data, timeout=timeout)
+    h = dict(headers or {})
+    data = None
+    if json_data is not None:
+        data = json.dumps(json_data).encode("utf-8")
+        h["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, headers=h, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            status = resp.status
+            body = resp.read().decode("utf-8", errors="replace")
+            return SimpleHTTPResponse(status, body)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return SimpleHTTPResponse(e.code, body)
+    except (urllib.error.URLError, socket.timeout) as e:
+        if (hasattr(e, "reason") and isinstance(e.reason, socket.timeout)) or isinstance(e, socket.timeout):
+            raise TimeoutError(f"Таймаут соединения с {url}")
+        raise ConnectionError(f"Сетевая ошибка: {e}")
 
 from PIL import Image
 
@@ -196,7 +250,7 @@ def check_ai_connection(api_key: Optional[str] = None) -> Dict[str, Any]:
     try:
         endpoint = f"{base_url}/models"
         headers = {"Authorization": f"Bearer {resolved_key}"}
-        resp = requests.get(endpoint, headers=headers, timeout=8)
+        resp = _http_get(endpoint, headers=headers, timeout=8)
 
         if resp.status_code == 200:
             return {
@@ -239,11 +293,11 @@ def check_ai_connection(api_key: Optional[str] = None) -> Dict[str, Any]:
                 "masked_key": masked_key,
                 "base_url": base_url
             }
-    except requests.exceptions.Timeout:
+    except (getattr(requests.exceptions, 'Timeout', TimeoutError) if requests else TimeoutError, TimeoutError):
         return {
             "ok": False,
             "code": "TIMEOUT",
-            "message": f"Таймаут: сервер {base_url} не ответил за 8 секунд. Проверьте интернет или прокси.",
+            "message": f"Таймаут: сервер {base_url} не ответил за 8 секунд. Проверьте интернет или настройки сети.",
             "masked_key": masked_key,
             "base_url": base_url
         }
@@ -353,7 +407,7 @@ def analyze_document_with_ai(
             "max_tokens": 1000
         }
 
-        resp = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
+        resp = _http_post(endpoint, headers=headers, json_data=payload, timeout=timeout)
         if resp.status_code != 200:
             err_msg = f"Ошибка OpenAI API ({resp.status_code}): {resp.text[:200]}"
             if resp.status_code == 403 or "unsupported_country_region_territory" in resp.text:
@@ -448,7 +502,7 @@ def analyze_text_message_with_ai(
             "max_tokens": 1500
         }
 
-        resp = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
+        resp = _http_post(endpoint, headers=headers, json_data=payload, timeout=timeout)
         if resp.status_code != 200:
             err_msg = f"Ошибка OpenAI API ({resp.status_code}): {resp.text[:200]}"
             if resp.status_code == 403 or "unsupported_country_region_territory" in resp.text:

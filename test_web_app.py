@@ -570,6 +570,25 @@ def test_ai_status_endpoint():
         assert j["code"] == "SERVER_ERROR"
         assert "Unexpected test crash" in j["message"]
 
+    # 5. Zero-dependency fallback when requests is not installed (requests = None)
+    import ai_vision
+    orig_requests = ai_vision.requests
+    try:
+        ai_vision.requests = None
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = b'{"data": []}'
+        mock_resp.__enter__.return_value = mock_resp
+
+        with patch("urllib.request.urlopen", return_value=mock_resp), patch("ai_vision.get_api_key", return_value="sk-proj-testkey12345"):
+            res = client.get("/api/ai-status")
+            assert res.status_code == 200
+            j = res.json()
+            assert j["ok"] is True
+            assert j["code"] == "OK"
+    finally:
+        ai_vision.requests = orig_requests
+
     print("✓ test_ai_status_endpoint passed")
 
 if __name__ == "__main__":
