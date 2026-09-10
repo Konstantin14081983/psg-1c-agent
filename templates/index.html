@@ -1256,22 +1256,7 @@
               </div>
             </div>
 
-            <!-- API Key input (opens when AI toggle is ON) -->
-            <div class="ai-key-drawer" id="aiKeyDrawer">
-              <div class="form-label" style="margin-bottom: 0.25rem;">
-                <span>Ключ OpenAI API (или Proxy / VseGPT):</span>
-                <span style="font-weight: normal; color: var(--slate-500); font-size: 0.72rem;">хранится в вашем браузере</span>
-              </div>
-              <div class="ai-key-input-group">
-                <input type="password" class="form-input" id="openaiApiKeyInput" placeholder="sk-proj-... (если пусто, используется .env сервера)" oninput="saveApiKey(this.value)">
-                <button type="button" class="ai-key-toggle-btn" onclick="toggleKeyVisibility()" id="toggleKeyVisibilityBtn" title="Показать/скрыть ключ">
-                  <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
-                </button>
-              </div>
-              <div style="font-size: 0.72rem; color: var(--slate-500); margin-top: 0.4rem; line-height: 1.35;">
-                💡 Если ключ уже настроен в <code>.env</code> на сервере, поле можно оставить пустым. При выключении тумблера софт мгновенно вернется к локальному Tesseract OCR без обращения к внешним серверам.
-              </div>
-            </div>
+            <input type="hidden" id="openaiApiKeyInput" value="">
           </div>
 
           <!-- Input Mode Tabs -->
@@ -1804,17 +1789,11 @@
     // AI Toggle & LocalStorage persistence
     function initAiMode() {
       const savedAi = localStorage.getItem('psg_use_ai');
-      const savedKey = localStorage.getItem('psg_openai_key') || '';
-      
       const toggle = document.getElementById('useAiToggle');
-      const keyInput = document.getElementById('openaiApiKeyInput');
-      
-      if (savedKey) {
-        keyInput.value = savedKey;
+      const isAiOn = (savedAi === 'true');
+      if (toggle) {
+        toggle.checked = isAiOn;
       }
-      
-      const isAiOn = (savedAi === 'true') || (savedAi === null && savedKey.length > 0);
-      toggle.checked = isAiOn;
       updateAiModeUI(isAiOn);
     }
 
@@ -1826,36 +1805,17 @@
     function updateAiModeUI(checked) {
       const card = document.getElementById('aiModeCard');
       const badge = document.getElementById('aiStatusBadge');
-      const drawer = document.getElementById('aiKeyDrawer');
       
+      if (!card || !badge) return;
+
       if (checked) {
         card.classList.add('active');
         badge.classList.add('active');
         badge.innerHTML = '<i data-lucide="sparkles" style="width: 12px; height: 12px;"></i><span>ИИ активен</span>';
-        drawer.classList.add('open');
-        gsap.fromTo(drawer, { opacity: 0, y: -4 }, { opacity: 1, y: 0, duration: 0.25, ease: 'power2.out' });
       } else {
         card.classList.remove('active');
         badge.classList.remove('active');
         badge.innerHTML = '<i data-lucide="zap" style="width: 12px; height: 12px;"></i><span>Локальный Tesseract</span>';
-        drawer.classList.remove('open');
-      }
-      refreshIcons();
-    }
-
-    function saveApiKey(val) {
-      localStorage.setItem('psg_openai_key', val.trim());
-    }
-
-    function toggleKeyVisibility() {
-      const input = document.getElementById('openaiApiKeyInput');
-      const btn = document.getElementById('toggleKeyVisibilityBtn');
-      if (input.type === 'password') {
-        input.type = 'text';
-        btn.innerHTML = '<i data-lucide="eye-off" style="width: 16px; height: 16px;"></i>';
-      } else {
-        input.type = 'password';
-        btn.innerHTML = '<i data-lucide="eye" style="width: 16px; height: 16px;"></i>';
       }
       refreshIcons();
     }
@@ -1921,7 +1881,8 @@
 
       // AI Vision options
       const useAi = document.getElementById('useAiToggle').checked;
-      const apiKey = document.getElementById('openaiApiKeyInput').value.trim();
+      const keyEl = document.getElementById('openaiApiKeyInput');
+      const apiKey = keyEl ? keyEl.value.trim() : '';
       formData.append('use_ai', useAi);
       if (apiKey) {
         formData.append('openai_api_key', apiKey);
