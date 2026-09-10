@@ -3,71 +3,82 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Агент 1С | ЧОУ ДПО ЦЕНТР "ПСГ"</title>
+  <title>ЧОУ ДПО ЦЕНТР «ПСГ» | Агент 1С — Интеллектуальная подготовка заявок</title>
   
-  <!-- Modern Typography: Plus Jakarta Sans + IBM Plex Sans + JetBrains Mono -->
+  <!-- Premium Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   
-  <!-- GSAP 3 -->
+  <!-- GSAP 3 & Lucide Icons -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
 
   <style>
     :root {
-      /* Palette: Swiss B2B Engineering & PSG Brand */
-      --psg-red: #E51E25;
-      --psg-red-hover: #C41219;
-      --psg-red-subtle: rgba(229, 30, 37, 0.08);
-      --psg-red-border: rgba(229, 30, 37, 0.25);
-      
-      --slate-950: #090B10;
-      --slate-900: #0F141E;
-      --slate-850: #141A27;
-      --slate-800: #1E2638;
-      --slate-700: #334155;
-      --slate-600: #475569;
-      --slate-500: #64748B;
-      --slate-400: #94A3B8;
-      --slate-300: #CBD5E1;
-      --slate-200: #E2E8F0;
-      --slate-100: #F1F5F9;
-      --slate-50:  #F8FAFC;
-      
-      --emerald-600: #059669;
-      --emerald-500: #10B981;
-      --emerald-100: #DCFCE7;
-      --emerald-50:  #F0FDF4;
-      
-      --amber-600: #D97706;
-      --amber-500: #F59E0B;
-      --amber-100: #FEF3C7;
-      --amber-50:  #FFFBEB;
-      
-      --rose-600: #E11D48;
-      --rose-500: #F43F5E;
-      --rose-100: #FFE4E6;
-      --rose-50:  #FFF1F2;
-      
-      --cell-yellow: #FFFF00;
-      --psg-1c-turquoise: #DCFFDD;
-      
-      --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-      --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      /* Silicon Valley Precision Tokens */
+      --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
+
+      --bg-canvas: #F8FAFC;
+      --bg-surface: #FFFFFF;
+      --bg-surface-elevated: #FFFFFF;
+      --bg-subtle: #F1F5F9;
+      --bg-subtle-hover: #E2E8F0;
+
+      --border-subtle: rgba(226, 232, 240, 0.85);
+      --border-strong: #CBD5E1;
+      --border-focus: #DC2626;
+
+      --text-primary: #0F172A;
+      --text-secondary: #475569;
+      --text-muted: #64748B;
+      --text-faint: #94A3B8;
+
+      /* PSG Corporate Red & Accents */
+      --psg-red: #DC2626;
+      --psg-red-hover: #B91C1C;
+      --psg-red-active: #991B1B;
+      --psg-red-subtle: #FEF2F2;
+      --psg-red-border: #FCA5A5;
+      --psg-red-glow: rgba(220, 38, 38, 0.25);
+
+      /* Semantic Statuses */
+      --emerald-primary: #059669;
+      --emerald-hover: #047857;
+      --emerald-subtle: #ECFDF5;
+      --emerald-border: #A7F3D0;
       
-      --radius-sm: 6px;
-      --radius-md: 10px;
-      --radius-lg: 14px;
-      
-      --shadow-subtle: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
-      --shadow-card: 0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -2px rgba(15, 23, 42, 0.04);
-      --shadow-hover: 0 10px 20px -3px rgba(15, 23, 42, 0.08), 0 4px 8px -2px rgba(15, 23, 42, 0.04);
+      --amber-primary: #D97706;
+      --amber-subtle: #FFFBEB;
+      --amber-border: #FDE68A;
+
+      --indigo-primary: #4F46E5;
+      --indigo-subtle: #EEF2FF;
+      --indigo-border: #C7D2FE;
+
+      /* 1C Spreadsheet Standard Colors */
+      --cell-yellow: #FFF2CC;
+      --psg-1c-turquoise: #DCFFDD;
+
+      /* Radii */
+      --radius-xs: 6px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+
+      /* Elevation Shadows */
+      --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+      --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+      --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+      --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+      --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 10px 30px -10px rgba(15, 23, 42, 0.06);
     }
 
-    * {
+    *, *::before, *::after {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
@@ -75,8 +86,11 @@
 
     body {
       font-family: var(--font-body);
-      background-color: var(--slate-50);
-      color: var(--slate-900);
+      background-color: var(--bg-canvas);
+      background-image: 
+        radial-gradient(at 100% 0%, rgba(220, 38, 38, 0.03) 0px, transparent 50%),
+        radial-gradient(at 0% 100%, rgba(5, 150, 105, 0.02) 0px, transparent 50%);
+      color: var(--text-primary);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -85,169 +99,176 @@
       -moz-osx-font-smoothing: grayscale;
     }
 
-    /* Top Utility Bar */
+    /* Top Live Network Status Ribbon */
     .top-strip {
-      background: var(--slate-950);
-      color: var(--slate-400);
+      background: #0B0F17;
+      color: #94A3B8;
       font-size: 0.72rem;
-      padding: 0.35rem 2rem;
+      padding: 0.45rem 1.5rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .top-strip-links {
-      display: flex;
-      gap: 1.25rem;
-      align-items: center;
-    }
-
-    .top-strip-link {
-      color: var(--slate-400);
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      transition: color 0.15s ease;
-    }
-
-    .top-strip-link:hover {
-      color: #FFFFFF;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-family: var(--font-mono);
+      letter-spacing: 0.02em;
     }
 
     .system-status-indicator {
       display: inline-flex;
       align-items: center;
-      gap: 0.45rem;
-      color: var(--slate-300);
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
+      gap: 0.5rem;
+      font-weight: 500;
+      color: #E2E8F0;
     }
 
     .pulse-dot {
-      width: 6px;
-      height: 6px;
-      background-color: var(--emerald-500);
-      border-radius: 50%;
-      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
-      animation: pulseGlow 2s infinite ease-in-out;
+      width: 7px;
+      height: 7px;
+      background-color: #10B981;
+      border-radius: var(--radius-full);
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
     }
 
-    @keyframes pulseGlow {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(1.15); }
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
 
-    /* Main Header */
-    header {
-      background-color: #FFFFFF;
-      border-bottom: 1px solid var(--slate-200);
-      padding: 0.9rem 2rem;
-      display: flex;
+    .top-strip-links {
+      display: inline-flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 1.25rem;
+    }
+
+    /* Sticky Silicon Valley Header */
+    header {
       position: sticky;
       top: 0;
-      z-index: 100;
-      box-shadow: var(--shadow-subtle);
+      z-index: 40;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0.85rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: box-shadow 0.2s ease;
     }
 
     .brand-container {
       display: flex;
       align-items: center;
-      gap: 1.1rem;
+      gap: 1rem;
+    }
+
+    .logo-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .logo-wrapper:hover {
+      transform: scale(1.03);
     }
 
     .logo-img {
-      height: 48px;
-      width: 48px;
+      height: 44px;
+      width: auto;
       object-fit: contain;
-      border-radius: 8px;
-      padding: 2px;
-      background: #FFFFFF;
-      border: 1px solid var(--slate-200);
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.06));
     }
 
     .brand-text h1 {
       font-family: var(--font-display);
-      font-size: 1.18rem;
-      font-weight: 800;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-primary);
       letter-spacing: -0.025em;
-      color: var(--slate-900);
       display: flex;
       align-items: center;
-      gap: 0.35rem;
-      line-height: 1.2;
+      gap: 0.45rem;
     }
 
     .brand-text h1 span {
       color: var(--psg-red);
+      font-weight: 800;
     }
 
     .brand-text p {
       font-size: 0.78rem;
-      color: var(--slate-500);
-      margin-top: 0.15rem;
-      font-weight: 400;
+      color: var(--text-muted);
+      margin-top: -1px;
     }
 
     .header-badges {
       display: flex;
       align-items: center;
-      gap: 0.65rem;
+      gap: 0.6rem;
     }
 
     .header-badge {
-      font-family: var(--font-mono);
-      background-color: var(--slate-100);
-      border: 1px solid var(--slate-200);
-      color: var(--slate-700);
-      font-size: 0.72rem;
-      font-weight: 500;
-      padding: 0.3rem 0.75rem;
-      border-radius: 9999px;
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.35rem 0.7rem;
+      border-radius: var(--radius-full);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      font-family: var(--font-display);
+      transition: all 0.15s ease;
+    }
+
+    .header-badge:hover {
+      border-color: var(--border-strong);
+      background: #FFFFFF;
     }
 
     /* Main Container */
     main {
       flex: 1;
-      max-width: 1560px;
+      max-width: 1400px;
       width: 100%;
       margin: 0 auto;
-      padding: 1.75rem 2rem;
+      padding: 2rem;
       display: grid;
-      grid-template-columns: 470px 1fr;
-      gap: 1.75rem;
+      grid-template-columns: minmax(460px, 490px) minmax(0, 1fr);
+      gap: 2rem;
       align-items: start;
     }
 
-    @media (max-width: 1120px) {
+    @media (max-width: 1100px) {
       main {
         grid-template-columns: 1fr;
+        padding: 1.25rem;
+        gap: 1.5rem;
       }
     }
 
-    /* Unified Card System */
+    /* Glass Cards */
     .card {
-      background: #FFFFFF;
-      border: 1px solid var(--slate-200);
-      border-radius: var(--radius-lg);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
       box-shadow: var(--shadow-card);
       overflow: hidden;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
     .card:hover {
-      border-color: var(--slate-300);
+      border-color: rgba(203, 213, 225, 0.9);
     }
 
     .card-header {
-      padding: 1.15rem 1.35rem;
-      border-bottom: 1px solid var(--slate-100);
+      padding: 1rem 1.35rem;
+      border-bottom: 1px solid var(--border-subtle);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -255,75 +276,78 @@
     }
 
     .card-title {
-      font-family: var(--font-display);
-      font-size: 0.94rem;
-      font-weight: 700;
-      color: var(--slate-900);
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 0.55rem;
+      gap: 0.6rem;
+      font-family: var(--font-display);
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--text-primary);
       letter-spacing: -0.015em;
     }
 
     .card-title svg {
-      color: var(--psg-red);
       width: 18px;
       height: 18px;
+      color: var(--text-secondary);
     }
 
     .card-body {
       padding: 1.35rem;
     }
 
-    /* AI Mode Switch Card */
+    /* AI Vision Switch Banner (Linear-style Glow) */
     .ai-mode-card {
-      background: linear-gradient(145deg, #FFFFFF 0%, var(--slate-50) 100%);
-      border: 1px solid var(--slate-200);
-      border-radius: var(--radius-md);
-      padding: 0.95rem 1.1rem;
-      margin-bottom: 1.15rem;
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      background: linear-gradient(145deg, #FFFFFF, var(--bg-subtle));
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 0.9rem 1.05rem;
+      margin-bottom: 1.25rem;
       position: relative;
+      transition: all 0.2s ease;
     }
 
     .ai-mode-card.active {
-      background: linear-gradient(145deg, var(--emerald-50) 0%, #FFFFFF 100%);
-      border-color: #86EFAC;
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.08);
+      border-color: var(--emerald-border);
+      background: linear-gradient(145deg, #FFFFFF, var(--emerald-subtle));
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.08);
     }
 
     .ai-mode-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 0.75rem;
+      gap: 0.85rem;
     }
 
     .ai-mode-info {
-      display: flex;
-      flex-direction: column;
-      gap: 0.2rem;
+      flex: 1;
     }
 
     .ai-mode-title {
       font-family: var(--font-display);
-      font-size: 0.86rem;
+      font-size: 0.84rem;
       font-weight: 700;
-      color: var(--slate-900);
-      display: inline-flex;
+      color: var(--text-primary);
+      display: flex;
       align-items: center;
       gap: 0.45rem;
     }
 
     .ai-mode-title svg {
-      width: 16px;
-      height: 16px;
-      color: var(--emerald-600);
+      width: 15px;
+      height: 15px;
+      color: var(--psg-red);
+    }
+
+    .ai-mode-card.active .ai-mode-title svg {
+      color: var(--emerald-primary);
     }
 
     .ai-mode-subtitle {
       font-size: 0.74rem;
-      color: var(--slate-500);
+      color: var(--text-muted);
+      margin-top: 2px;
       line-height: 1.35;
     }
 
@@ -333,11 +357,33 @@
       gap: 0.65rem;
     }
 
+    .ai-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.25rem 0.6rem;
+      border-radius: var(--radius-full);
+      background: var(--bg-subtle-hover);
+      color: var(--text-secondary);
+      transition: all 0.2s ease;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .ai-mode-card.active .ai-badge {
+      background: #D1FAE5;
+      color: #065F46;
+      border: 1px solid rgba(5, 150, 105, 0.2);
+    }
+
+    /* iOS / Linear Tactile Switch */
     .switch {
       position: relative;
       display: inline-block;
-      width: 46px;
-      height: 26px;
+      width: 44px;
+      height: 24px;
       flex-shrink: 0;
     }
 
@@ -350,125 +396,66 @@
     .slider {
       position: absolute;
       cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: var(--slate-300);
-      transition: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      border-radius: 26px;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: var(--border-strong);
+      transition: background-color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      border-radius: 24px;
     }
 
-    .slider:before {
+    .slider::before {
       position: absolute;
       content: "";
-      height: 20px;
-      width: 20px;
+      height: 18px;
+      width: 18px;
       left: 3px;
       bottom: 3px;
-      background-color: white;
-      transition: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      background-color: #FFFFFF;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
       border-radius: 50%;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
 
     input:checked + .slider {
-      background-color: var(--emerald-500);
+      background-color: var(--emerald-primary);
     }
 
-    input:checked + .slider:before {
+    input:checked + .slider::before {
       transform: translateX(20px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
     }
 
-    .ai-badge {
-      font-family: var(--font-mono);
-      font-size: 0.71rem;
-      font-weight: 600;
-      padding: 0.22rem 0.65rem;
-      border-radius: 9999px;
-      border: 1px solid var(--slate-200);
-      background: #FFFFFF;
-      color: var(--slate-600);
-      white-space: nowrap;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-    }
-
-    .ai-badge.active {
-      background: var(--emerald-100);
-      color: #14532D;
-      border-color: #86EFAC;
-    }
-
-    .ai-key-drawer {
-      margin-top: 0.85rem;
-      padding-top: 0.85rem;
-      border-top: 1px dashed var(--slate-200);
-      display: none;
-    }
-
-    .ai-key-drawer.open {
-      display: block;
-    }
-
-    .ai-key-input-group {
-      display: flex;
-      gap: 0.45rem;
-      align-items: center;
-      margin-top: 0.4rem;
-    }
-
-    .ai-key-toggle-btn {
-      background: #FFFFFF;
-      border: 1px solid var(--slate-300);
-      border-radius: var(--radius-sm);
-      padding: 0.55rem 0.75rem;
-      cursor: pointer;
-      color: var(--slate-600);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.15s ease;
-      min-height: 40px;
-      min-width: 40px;
-    }
-
-    .ai-key-toggle-btn:hover {
-      background: var(--slate-100);
-      color: var(--slate-900);
-      border-color: var(--slate-400);
-    }
-
-    /* Segmented Sliding Tabs */
+    /* Segmented Slider Tabs (Linear / Raycast Style) */
     .tabs-nav {
-      display: flex;
-      background: var(--slate-100);
-      padding: 4px;
-      border-radius: var(--radius-md);
-      margin-bottom: 1.15rem;
       position: relative;
-      gap: 4px;
+      display: flex;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+      margin-bottom: 1rem;
+      gap: 3px;
     }
 
     .tab-btn {
       flex: 1;
+      position: relative;
+      z-index: 2;
       padding: 0.65rem 0.9rem;
       border: none;
       background: transparent;
-      border-radius: var(--radius-sm);
+      border-radius: var(--radius-xs);
       font-family: var(--font-display);
       font-size: 0.83rem;
       font-weight: 600;
-      color: var(--slate-600);
+      color: var(--text-muted);
       cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 0.45rem;
-      min-height: 44px;
+      gap: 0.5rem;
+      min-height: 42px;
       user-select: none;
+      transition: color 0.15s ease;
     }
 
     .tab-btn svg {
@@ -477,13 +464,13 @@
     }
 
     .tab-btn:hover {
-      color: var(--slate-900);
+      color: var(--text-primary);
     }
 
     .tab-btn.active {
       background: #FFFFFF;
-      color: var(--slate-900);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+      color: var(--text-primary);
+      box-shadow: var(--shadow-sm);
     }
 
     .tab-pane {
@@ -494,25 +481,27 @@
       display: block;
     }
 
-    /* Modern Dropzone */
+    /* High-Precision Dropzone */
     .dropzone {
-      border: 2px dashed var(--slate-300);
-      background-color: var(--slate-50);
+      border: 2px dashed var(--border-strong);
+      background: var(--bg-canvas);
       border-radius: var(--radius-md);
       padding: 2.25rem 1.5rem;
       text-align: center;
       cursor: pointer;
       transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       position: relative;
+      overflow: hidden;
     }
 
     .dropzone:hover, .dropzone.dragover {
       border-color: var(--psg-red);
       background-color: var(--psg-red-subtle);
+      transform: scale(1.005);
     }
 
     .dropzone-icon {
-      color: var(--slate-400);
+      color: var(--text-faint);
       margin-bottom: 0.6rem;
       display: inline-flex;
       align-items: center;
@@ -522,25 +511,25 @@
 
     .dropzone:hover .dropzone-icon {
       color: var(--psg-red);
-      transform: translateY(-2px);
+      transform: translateY(-3px) scale(1.05);
     }
 
     .dropzone-icon svg {
-      width: 40px;
-      height: 40px;
+      width: 42px;
+      height: 42px;
     }
 
     .dropzone-text {
       font-family: var(--font-display);
       font-size: 0.88rem;
       font-weight: 700;
-      color: var(--slate-900);
+      color: var(--text-primary);
       margin-bottom: 0.25rem;
     }
 
     .dropzone-hint {
       font-size: 0.75rem;
-      color: var(--slate-500);
+      color: var(--text-muted);
       line-height: 1.4;
     }
 
@@ -550,7 +539,7 @@
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
-      max-height: 220px;
+      max-height: 230px;
       overflow-y: auto;
       padding-right: 2px;
     }
@@ -559,25 +548,26 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0.55rem 0.85rem;
-      background: var(--slate-50);
-      border-radius: var(--radius-sm);
+      padding: 0.6rem 0.85rem;
+      background: #FFFFFF;
+      border-radius: var(--radius-xs);
       font-size: 0.82rem;
-      border: 1px solid var(--slate-200);
-      transition: border-color 0.15s ease;
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-xs);
+      transition: all 0.15s ease;
     }
 
     .file-item:hover {
-      border-color: var(--slate-300);
-      background: #FFFFFF;
+      border-color: var(--border-strong);
+      box-shadow: var(--shadow-sm);
     }
 
     .file-item-name {
       display: flex;
       align-items: center;
-      gap: 0.55rem;
+      gap: 0.6rem;
       font-weight: 500;
-      color: var(--slate-900);
+      color: var(--text-primary);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -587,47 +577,47 @@
     .file-item-name svg {
       width: 16px;
       height: 16px;
-      color: var(--slate-500);
+      color: var(--emerald-primary);
       flex-shrink: 0;
     }
 
     .file-remove-btn {
-      color: var(--slate-400);
+      color: var(--text-faint);
       background: none;
       border: none;
       font-size: 1rem;
       cursor: pointer;
       padding: 0.25rem;
+      line-height: 1;
       border-radius: 4px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      transition: color 0.15s ease, background-color 0.15s ease;
-      min-width: 28px;
-      min-height: 28px;
+      transition: all 0.15s ease;
     }
 
     .file-remove-btn:hover {
-      color: var(--rose-600);
-      background-color: var(--rose-100);
+      color: var(--psg-red);
+      background: var(--psg-red-subtle);
     }
 
     .add-more-btn {
       margin-top: 0.65rem;
-      background-color: #FFFFFF;
-      border: 1px solid var(--slate-300);
-      color: var(--slate-700);
-      font-family: var(--font-display);
-      font-size: 0.78rem;
+      padding: 0.45rem 0.85rem;
+      background: #FFFFFF;
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius-xs);
+      font-size: 0.75rem;
       font-weight: 600;
-      padding: 0.5rem 0.95rem;
-      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 0.45rem;
-      transition: all 0.2s ease;
-      min-height: 38px;
+      gap: 0.35rem;
+      transition: all 0.15s ease;
+    }
+
+    .add-more-btn:hover {
+      border-color: var(--psg-red);
+      color: var(--psg-red);
+      background: var(--psg-red-subtle);
     }
 
     .add-more-btn svg {
@@ -635,99 +625,86 @@
       height: 14px;
     }
 
-    .add-more-btn:hover {
-      background-color: var(--slate-100);
-      border-color: var(--slate-400);
-      color: var(--slate-900);
-    }
-
-    /* Text message input */
-    textarea.msg-input {
-      width: 100%;
-      height: 145px;
-      padding: 0.85rem;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--slate-300);
-      font-family: var(--font-body);
-      font-size: 0.85rem;
-      resize: vertical;
-      outline: none;
-      background: #FFFFFF;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-      line-height: 1.45;
-    }
-
-    textarea.msg-input:focus {
-      border-color: var(--psg-red);
-      box-shadow: 0 0 0 3px var(--psg-red-subtle);
-    }
-
-    /* Form Fields & Accordion */
+    /* Form Controls */
     .form-group {
-      margin-bottom: 1rem;
+      margin-bottom: 0.95rem;
     }
 
     .form-label {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      display: block;
       font-family: var(--font-display);
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: var(--slate-700);
+      font-size: 0.77rem;
+      font-weight: 600;
+      color: var(--text-secondary);
       margin-bottom: 0.35rem;
+      letter-spacing: -0.01em;
     }
 
-    .form-input, .form-select {
+    .form-input, .form-select, .msg-input {
       width: 100%;
       padding: 0.6rem 0.85rem;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--slate-300);
-      font-size: 0.84rem;
       font-family: var(--font-body);
-      outline: none;
+      font-size: 0.84rem;
+      color: var(--text-primary);
       background-color: #FFFFFF;
-      color: var(--slate-900);
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-      min-height: 42px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-xs);
+      box-shadow: var(--shadow-xs);
+      transition: all 0.2s ease;
     }
 
-    .form-input:focus, .form-select:focus {
+    .form-input:focus, .form-select:focus, .msg-input:focus {
+      outline: none;
       border-color: var(--psg-red);
-      box-shadow: 0 0 0 3px var(--psg-red-subtle);
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
     }
 
-    /* Collapsible Section Header */
+    .msg-input {
+      min-height: 130px;
+      resize: vertical;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+
+    /* Collapsible Manual Overrides Accordion */
     .accordion-toggle-btn {
       width: 100%;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: transparent;
-      border: none;
+      padding: 0.55rem 0.75rem;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xs);
       cursor: pointer;
-      padding: 0.6rem 0;
-      user-select: none;
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+    }
+
+    .accordion-toggle-btn:hover {
+      background: var(--bg-subtle-hover);
+      color: var(--text-primary);
     }
 
     .accordion-title {
-      font-family: var(--font-display);
-      font-size: 0.86rem;
-      font-weight: 700;
-      color: var(--slate-900);
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.45rem;
+      font-family: var(--font-display);
+      font-size: 0.8rem;
+      font-weight: 600;
     }
 
     .accordion-title svg {
-      width: 16px;
-      height: 16px;
-      color: var(--slate-500);
+      width: 14px;
+      height: 14px;
+      color: var(--text-muted);
     }
 
     .accordion-arrow {
-      color: var(--slate-400);
+      width: 16px;
+      height: 16px;
       transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
@@ -737,103 +714,100 @@
 
     .accordion-content {
       display: none;
-      padding-top: 0.75rem;
+      margin-top: 0.85rem;
+      padding: 0.85rem;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xs);
     }
 
     .accordion-content.open {
       display: block;
     }
 
-    /* Date presets */
-    .date-presets {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-      margin-top: 0.45rem;
-    }
-
-    .preset-chip {
-      font-family: var(--font-mono);
-      font-size: 0.69rem;
-      font-weight: 500;
-      padding: 0.25rem 0.55rem;
-      background: var(--slate-100);
-      color: var(--slate-700);
-      border-radius: 4px;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      border: 1px solid var(--slate-200);
-    }
-
-    .preset-chip:hover {
-      background: var(--slate-900);
-      color: #FFFFFF;
-      border-color: var(--slate-900);
-    }
-
     .btn-clear-params {
-      background: #FFFFFF;
-      border: 1px solid var(--slate-200);
-      border-radius: 4px;
-      padding: 3px 8px;
-      font-size: 0.72rem;
+      background: none;
+      border: none;
+      font-size: 0.73rem;
       font-weight: 600;
-      color: var(--slate-500);
+      color: var(--text-muted);
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 0.3rem;
+      padding: 0.35rem 0.6rem;
+      border-radius: 4px;
       transition: all 0.15s ease;
+      user-select: none;
     }
 
     .btn-clear-params:hover {
-      background: var(--rose-50);
-      color: var(--rose-600);
-      border-color: var(--rose-100);
+      color: var(--psg-red);
+      background: var(--psg-red-subtle);
     }
 
+    /* Program Chips Grid */
     .prog-chips-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-      margin-bottom: 0.5rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.45rem;
+      margin-bottom: 0.65rem;
     }
 
     .prog-chip-label {
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 0.4rem;
-      font-size: 0.74rem;
-      background: var(--slate-50);
-      color: var(--slate-700);
-      padding: 4px 9px;
-      border-radius: 6px;
-      border: 1px solid var(--slate-200);
+      gap: 0.45rem;
+      padding: 0.45rem 0.65rem;
+      background: #FFFFFF;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-xs);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-secondary);
       cursor: pointer;
-      user-select: none;
       transition: all 0.15s ease;
+      user-select: none;
     }
 
     .prog-chip-label:hover {
-      background: var(--slate-100);
-      border-color: var(--slate-300);
-      color: var(--slate-900);
+      border-color: var(--border-focus);
+      background: var(--psg-red-subtle);
+      color: var(--text-primary);
     }
 
     .prog-chip-label input[type="checkbox"] {
       accent-color: var(--psg-red);
-      width: 14px;
-      height: 14px;
     }
 
+    /* Preset Chips */
+    .preset-chip {
+      background: #FFFFFF;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-xs);
+      font-family: var(--font-display);
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .preset-chip:hover {
+      border-color: var(--psg-red);
+      color: var(--psg-red);
+      background: var(--psg-red-subtle);
+      transform: translateY(-1px);
+    }
+
+    .preset-chip:active {
+      transform: translateY(0);
+    }
+
+    /* Checkbox Group */
     .checkbox-group {
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
-      background-color: var(--slate-50);
-      padding: 0.75rem 0.9rem;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--slate-200);
     }
 
     .checkbox-label {
@@ -841,8 +815,7 @@
       align-items: center;
       gap: 0.55rem;
       font-size: 0.77rem;
-      font-weight: 500;
-      color: var(--slate-700);
+      color: var(--text-secondary);
       cursor: pointer;
       user-select: none;
     }
@@ -853,37 +826,36 @@
       height: 15px;
     }
 
-    /* Buttons */
+    /* Primary Action Buttons */
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 0.55rem;
+      width: 100%;
+      padding: 0.85rem 1.5rem;
       font-family: var(--font-display);
       font-size: 0.9rem;
       font-weight: 700;
-      padding: 0.85rem 1.4rem;
-      border-radius: var(--radius-md);
+      border-radius: var(--radius-sm);
       border: none;
       cursor: pointer;
       transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      width: 100%;
-      min-height: 48px;
+      user-select: none;
       text-decoration: none;
-      position: relative;
-      overflow: hidden;
+      box-shadow: var(--shadow-sm);
     }
 
     .btn-red {
-      background-color: var(--psg-red);
+      background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
       color: #FFFFFF;
-      box-shadow: 0 2px 6px rgba(229, 30, 37, 0.25);
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
     }
 
     .btn-red:hover {
-      background-color: var(--psg-red-hover);
+      background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
       transform: translateY(-1px);
-      box-shadow: 0 6px 14px rgba(229, 30, 37, 0.3);
+      box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35);
     }
 
     .btn-red:active {
@@ -897,51 +869,76 @@
     }
 
     .btn-download {
-      background-color: var(--emerald-600);
+      background: linear-gradient(135deg, #10B981 0%, #059669 100%);
       color: #FFFFFF;
-      box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
       margin-top: 1.25rem;
     }
 
     .btn-download:hover {
-      background-color: #047857;
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
       transform: translateY(-1px);
-      box-shadow: 0 6px 14px rgba(5, 150, 105, 0.3);
+      box-shadow: 0 6px 16px rgba(5, 150, 105, 0.35);
     }
 
     /* Live Processing Stepper */
     .processing-stepper {
       margin-top: 0.85rem;
       display: none;
-      background: var(--slate-100);
-      padding: 0.65rem 0.85rem;
-      border-radius: var(--radius-sm);
-      font-size: 0.75rem;
-      color: var(--slate-600);
-      font-family: var(--font-mono);
-      border: 1px solid var(--slate-200);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      padding: 0.75rem 0.95rem;
+      border-radius: var(--radius-xs);
+      font-size: 0.77rem;
+      color: var(--text-secondary);
+      font-family: var(--font-display);
+      font-weight: 500;
     }
 
+    .stepper-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.4rem;
+    }
+
+    .stepper-bar {
+      width: 100%;
+      height: 4px;
+      background: var(--border-strong);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .stepper-progress {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #EF4444, #10B981);
+      border-radius: var(--radius-full);
+      transition: width 0.3s ease;
+    }
+
+    /* Spinner */
     .spinner {
       display: none;
-      width: 18px;
-      height: 18px;
-      border: 2px solid #FFFFFF;
-      border-top-color: transparent;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
       border-radius: 50%;
-      animation: spin 0.6s linear infinite;
+      border-top-color: #FFFFFF;
+      animation: spin 0.65s linear infinite;
     }
 
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
 
-    /* Right Column: Stats Matrix */
+    /* Silicon Valley Stat Cards */
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 0.85rem;
-      margin-bottom: 1.35rem;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
     }
 
     @media (max-width: 640px) {
@@ -952,104 +949,108 @@
 
     .stat-card {
       background: #FFFFFF;
-      border: 1px solid var(--slate-200);
-      border-radius: var(--radius-md);
-      padding: 0.85rem 1rem;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xs);
+      padding: 0.85rem;
       text-align: center;
-      transition: all 0.2s ease;
-      position: relative;
+      box-shadow: var(--shadow-xs);
+      transition: all 0.15s ease;
+      cursor: default;
     }
 
-    .stat-card:hover {
-      border-color: var(--slate-300);
-      box-shadow: var(--shadow-subtle);
+    .stat-card.clickable {
+      cursor: pointer;
+    }
+
+    .stat-card.clickable:hover {
+      border-color: var(--amber-primary);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-sm);
     }
 
     .stat-value {
-      font-family: var(--font-mono);
+      font-family: var(--font-display);
       font-size: 1.55rem;
-      font-weight: 700;
-      color: var(--slate-950);
+      font-weight: 800;
+      color: var(--text-primary);
       line-height: 1.1;
+      letter-spacing: -0.025em;
     }
 
     .stat-label {
-      font-family: var(--font-display);
-      font-size: 0.68rem;
-      color: var(--slate-500);
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      font-weight: 700;
-      margin-top: 0.35rem;
+      letter-spacing: 0.03em;
     }
 
-    /* Audit Sections */
+    /* Audit Badges & Blocks */
+    .audit-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+      border-radius: var(--radius-full);
+      font-family: var(--font-display);
+    }
+
+    .badge-error {
+      background-color: #FEE2E2;
+      color: #991B1B;
+      border: 1px solid #FCA5A5;
+    }
+
+    .badge-warning {
+      background-color: #FEF3C7;
+      color: #92400E;
+      border: 1px solid #FDE68A;
+    }
+
+    .badge-doc {
+      background-color: #E0E7FF;
+      color: #3730A3;
+      border: 1px solid #C7D2FE;
+    }
+
     .audit-section {
-      margin-bottom: 1.25rem;
+      margin-bottom: 1.15rem;
     }
 
     .audit-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 0.55rem;
+      margin-bottom: 0.45rem;
     }
 
     .audit-category-title {
       font-family: var(--font-display);
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 0.45rem;
-    }
-
-    .audit-badge {
-      font-family: var(--font-mono);
-      font-size: 0.72rem;
-      padding: 0.15rem 0.55rem;
-      border-radius: 9999px;
-      font-weight: 600;
-      border: 1px solid transparent;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-    }
-
-    .badge-error {
-      background-color: var(--rose-100);
-      color: #9F1239;
-      border-color: #FECDD3;
-    }
-
-    .badge-warning {
-      background-color: var(--amber-100);
-      color: #92400E;
-      border-color: #FDE68A;
-    }
-
-    .badge-doc {
-      background-color: #EEF2FF;
-      color: #3730A3;
-      border-color: #C7D2FE;
+      gap: 0.4rem;
     }
 
     .audit-list {
       display: flex;
       flex-direction: column;
-      gap: 0.45rem;
+      gap: 0.4rem;
     }
 
     .audit-item {
-      padding: 0.7rem 0.95rem;
-      border-radius: var(--radius-sm);
-      font-size: 0.82rem;
+      padding: 0.55rem 0.8rem;
+      border-radius: var(--radius-xs);
+      font-size: 0.78rem;
       display: flex;
       align-items: flex-start;
-      gap: 0.65rem;
-      line-height: 1.45;
+      gap: 0.6rem;
+      line-height: 1.4;
+      box-shadow: var(--shadow-xs);
     }
 
     .audit-item-error {
@@ -1059,8 +1060,8 @@
     }
 
     .audit-item-warning {
-      background-color: var(--amber-50);
-      border-left: 3px solid var(--amber-500);
+      background-color: var(--amber-subtle);
+      border-left: 3px solid var(--amber-primary);
       color: #92400E;
     }
 
@@ -1074,13 +1075,87 @@
       font-weight: 600;
     }
 
+    /* Table Toolbar & Search Bar */
+    .table-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.65rem;
+      flex-wrap: wrap;
+    }
+
+    .table-search-box {
+      position: relative;
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .table-search-box svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      color: var(--text-muted);
+    }
+
+    .table-search-input {
+      width: 100%;
+      padding: 0.45rem 0.75rem 0.45rem 2rem;
+      font-size: 0.76rem;
+      font-family: var(--font-body);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-xs);
+      background: #FFFFFF;
+      color: var(--text-primary);
+      transition: all 0.15s ease;
+    }
+
+    .table-search-input:focus {
+      outline: none;
+      border-color: var(--psg-red);
+      box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.1);
+    }
+
+    .table-filters {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .filter-chip {
+      padding: 0.35rem 0.65rem;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-subtle);
+      background: #FFFFFF;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .filter-chip:hover {
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }
+
+    .filter-chip.active {
+      background: var(--text-primary);
+      color: #FFFFFF;
+      border-color: var(--text-primary);
+    }
+
     /* 1C Preview Table */
     .table-container {
       max-height: 480px;
       overflow: auto;
-      border: 1px solid var(--slate-300);
-      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-xs);
       background-color: #FFFFFF;
+      box-shadow: var(--shadow-xs);
     }
 
     table.preview-1c {
@@ -1091,17 +1166,22 @@
     }
 
     table.preview-1c th, table.preview-1c td {
-      border: 1px solid #000000;
-      padding: 4px 6px;
+      border: 1px solid #D1D5DB;
+      padding: 5px 8px;
       vertical-align: top;
     }
 
     table.preview-1c th {
-      background-color: #FFFFFF;
+      background-color: #F9FAFB;
       font-weight: bold;
       text-align: center;
       vertical-align: middle;
       height: 32px;
+      color: var(--text-primary);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: inset 0 -1px 0 #D1D5DB;
     }
 
     .row-title-1c {
@@ -1113,12 +1193,11 @@
       background-color: #FFFFFF;
     }
 
-    /* LIGHT MINT/GREEN (#DCFFDD) */
     .row-prog-1c {
       background-color: var(--psg-1c-turquoise) !important;
       font-size: 11px;
       font-weight: normal;
-      padding: 4px 8px;
+      padding: 5px 8px;
       color: #000000;
     }
 
@@ -1136,20 +1215,24 @@
       position: absolute;
       left: 10px;
       bottom: 100%;
-      background: var(--slate-900);
+      background: var(--text-primary);
       color: #FFFFFF;
       padding: 4px 8px;
       border-radius: 4px;
       font-size: 10px;
       white-space: nowrap;
       z-index: 50;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      box-shadow: var(--shadow-lg);
+    }
+
+    table.preview-1c tr.student-row:hover td {
+      background-color: rgba(241, 245, 249, 0.7);
     }
 
     .placeholder-msg {
       padding: 3.5rem 2rem;
       text-align: center;
-      color: var(--slate-500);
+      color: var(--text-muted);
       font-size: 0.9rem;
       display: flex;
       flex-direction: column;
@@ -1160,17 +1243,71 @@
     .placeholder-msg svg {
       width: 44px;
       height: 44px;
-      color: var(--slate-300);
+      color: var(--border-strong);
     }
+
+    /* Floating Toast Notifications System (Sonner-like) */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      pointer-events: auto;
+      min-width: 300px;
+      max-width: 420px;
+      background: #FFFFFF;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-xl);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-size: 0.82rem;
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-weight: 500;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .toast svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
+    .toast.toast-success svg { color: var(--emerald-primary); }
+    .toast.toast-error svg { color: var(--psg-red); }
+    .toast.toast-warning svg { color: var(--amber-primary); }
+    .toast.toast-info svg { color: var(--indigo-primary); }
+
+    .toast-progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 2px;
+      background: var(--psg-red);
+      width: 100%;
+    }
+
+    .toast.toast-success .toast-progress { background: var(--emerald-primary); }
 
     /* Footer */
     footer {
       background: #FFFFFF;
-      border-top: 1px solid var(--slate-200);
+      border-top: 1px solid var(--border-subtle);
       padding: 1.25rem 2rem;
       text-align: center;
       font-size: 0.78rem;
-      color: var(--slate-500);
+      color: var(--text-muted);
       margin-top: auto;
     }
 
@@ -1194,7 +1331,7 @@
       <span>СИСТЕМА АКТИВНА • СЕРВЕР ЦЮРИХ (ZUR1)</span>
     </div>
     <div class="top-strip-links">
-      <span style="color: var(--slate-400);">ЧОУ ДПО ЦЕНТР «ПСГ» • Агент 1С</span>
+      <span style="color: var(--text-muted);">ЧОУ ДПО ЦЕНТР «ПСГ» • Агент 1С</span>
       <span>Регламенты Минтруда 2026</span>
     </div>
   </div>
@@ -1202,7 +1339,9 @@
   <!-- Header -->
   <header>
     <div class="brand-container">
-      <img src="data:image/png;base64,{LOGO_B64}" alt="ПСГ Логотип" class="logo-img">
+      <div class="logo-wrapper">
+        <img src="data:image/png;base64,{LOGO_B64}" alt="ПСГ Логотип" class="logo-img">
+      </div>
       <div class="brand-text">
         <h1>ЧОУ ДПО ЦЕНТР <span>«ПСГ»</span> | Агент 1С</h1>
         <p>Интеллектуальная обработка входящих заявок и подготовка эталонной выгрузки в 1С</p>
@@ -1210,11 +1349,11 @@
     </div>
     <div class="header-badges">
       <div class="header-badge">
-        <i data-lucide="shield-check" style="width: 14px; height: 14px; color: var(--emerald-600);"></i>
+        <i data-lucide="shield-check" style="width: 14px; height: 14px; color: var(--emerald-primary);"></i>
         <span>Регламенты 2026</span>
       </div>
       <div class="header-badge" style="background: var(--psg-red-subtle); border-color: var(--psg-red-border); color: var(--psg-red);">
-        <span>Версия 2.2</span>
+        <span>v2.6 Enterprise</span>
       </div>
     </div>
   </header>
@@ -1256,18 +1395,18 @@
               </div>
             </div>
             <!-- AI Diagnostics & Connection Status -->
-            <div id="aiDiagBox" style="display: none; margin-top: 0.65rem; padding: 0.55rem 0.8rem; border-radius: var(--radius-sm); font-size: 0.76rem; line-height: 1.45;"></div>
+            <div id="aiDiagBox" style="display: none; margin-top: 0.65rem; padding: 0.55rem 0.8rem; border-radius: var(--radius-xs); font-size: 0.76rem; line-height: 1.45;"></div>
 
             <input type="hidden" id="openaiApiKeyInput" value="">
           </div>
 
           <!-- Input Mode Tabs -->
-          <div class="tabs-nav">
-            <button type="button" class="tab-btn active" onclick="switchTab('file')">
+          <div class="tabs-nav" id="tabsNav">
+            <button type="button" class="tab-btn active" id="tabBtnFiles" onclick="switchTab('file')">
               <i data-lucide="files"></i>
               <span>Файлы заявки</span>
             </button>
-            <button type="button" class="tab-btn" onclick="switchTab('text')">
+            <button type="button" class="tab-btn" id="tabBtnText" onclick="switchTab('text')">
               <i data-lucide="message-square-text"></i>
               <span>Текст сообщения</span>
             </button>
@@ -1287,7 +1426,11 @@
             <!-- Multi-file list -->
             <div class="files-list-container" id="filesListContainer" style="display: none;"></div>
             
-            <div style="display: flex; justify-content: flex-end;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.65rem;">
+              <button type="button" class="btn-clear-params" id="clearAllFilesBtn" style="display: none;" onclick="clearAllFiles()">
+                <i data-lucide="trash" style="width: 12px; height: 12px;"></i>
+                <span>Очистить список</span>
+              </button>
               <button type="button" class="add-more-btn" id="addMoreBtn" style="display: none;" onclick="document.getElementById('fileInput').click()">
                 <i data-lucide="plus"></i>
                 <span>Добавить еще файл(ы)</span>
@@ -1298,12 +1441,12 @@
           <!-- Tab 2: Raw Text -->
           <div id="tabText" class="tab-pane">
             <div class="form-group">
-              <label class="form-label">Вставьте текст сообщения из WhatsApp / Telegram / Email:</label>
+              <label class="form-label" for="rawTextInput">Вставьте текст сообщения из WhatsApp / Telegram / Email:</label>
               <textarea class="msg-input" id="rawTextInput" placeholder="Пример:&#10;1. Иванов Иван Иванович, 12.05.1985, 189-878-867 92, монтажник м/к, Пожарка, 01.09.2026 - 15.09.2026&#10;2. Петров Петр Петрович, Бетонщик..."></textarea>
             </div>
           </div>
 
-          <hr style="margin: 1.25rem 0; border: none; border-top: 1px solid var(--slate-200);">
+          <hr style="margin: 1.25rem 0; border: none; border-top: 1px solid var(--border-subtle);">
 
           <!-- Manual Overrides for Manager (Collapsible) -->
           <div class="form-group" style="margin-bottom: 0.5rem;">
@@ -1312,6 +1455,7 @@
                 <div class="accordion-title">
                   <i data-lucide="sliders-horizontal"></i>
                   <span>Ручные параметры (опционально)</span>
+                  <span id="activeOverridesChip" style="display: none; margin-left: 6px; font-size: 0.68rem; padding: 1px 6px; border-radius: 9999px; background: var(--emerald-subtle); color: var(--emerald-primary); border: 1px solid var(--emerald-border);">Настроено</span>
                 </div>
                 <i data-lucide="chevron-down" class="accordion-arrow"></i>
               </button>
@@ -1323,7 +1467,7 @@
 
             <div class="accordion-content open" id="accordionContent">
               <div class="form-group">
-                <label class="form-label">Вид обучения:</label>
+                <label class="form-label" for="overrideCategory">Вид обучения:</label>
                 <select class="form-select" id="overrideCategory" onchange="handleCategoryChange(this.value)">
                   <option value="">Автоопределение по названию программы</option>
                   <option value="ОТ (Охрана труда)">Охрана труда (А, Б, В, СИЗ, ПП) — строго последовательно</option>
@@ -1335,7 +1479,7 @@
               </div>
 
               <div class="form-group">
-                <label class="form-label">Программы обучения (можно выбрать несколько или ввести свои):</label>
+                <label class="form-label" for="overrideProgram">Программы обучения (можно выбрать несколько или ввести свои):</label>
                 <div class="prog-chips-grid">
                   <label class="prog-chip-label"><input type="checkbox" name="progChip" value="ОТ (Б+СИЗ+ПП)" onchange="updateSelectedPrograms()"> 🛡️ Охрана труда (Б+СИЗ+ПП)</label>
                   <label class="prog-chip-label"><input type="checkbox" name="progChip" value="Высота 1 группа" onchange="updateSelectedPrograms()"> 🧗 Высота 1 группа</label>
@@ -1408,8 +1552,15 @@
             <span id="btnText">Обработать заявку и сформировать файл 1С</span>
           </button>
 
+          <!-- Stepper with Progress Bar -->
           <div class="processing-stepper" id="processingStepper">
-            <span id="stepperText">1. Чтение и парсинг входящих данных...</span>
+            <div class="stepper-header">
+              <span id="stepperText">1. Чтение и парсинг входящих данных...</span>
+              <span id="stepperTimer" style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">0.0s</span>
+            </div>
+            <div class="stepper-bar">
+              <div class="stepper-progress" id="stepperProgress"></div>
+            </div>
           </div>
 
         </form>
@@ -1427,7 +1578,7 @@
             <span>Отчет аудита и комментарии к заявке</span>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span id="engineBadge" class="audit-badge" style="display: none; background: var(--slate-100); color: var(--slate-700); border: 1px solid var(--slate-300);"></span>
+            <span id="engineBadge" class="audit-badge" style="display: none; background: var(--bg-subtle); color: var(--text-secondary); border: 1px solid var(--border-subtle);"></span>
             <span id="statusBadge" class="audit-badge badge-warning" style="display: none;">Требуется внимание</span>
           </div>
         </div>
@@ -1436,7 +1587,7 @@
           <div id="initialPlaceholder" class="placeholder-msg">
             <i data-lucide="file-search"></i>
             <div>
-              <div style="font-family: var(--font-display); font-weight: 700; color: var(--slate-800); margin-bottom: 0.25rem;">Готов к работе</div>
+              <div style="font-family: var(--font-display); font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem;">Готов к работе</div>
               <div>Загрузите файлы заявки или вставьте текст, чтобы запустить проверку и подготовку выгрузки для 1С</div>
             </div>
           </div>
@@ -1456,8 +1607,8 @@
                 <div class="stat-value" id="statRows">0</div>
                 <div class="stat-label">Строк в 1С</div>
               </div>
-              <div class="stat-card">
-                <div class="stat-value" id="statYellow" style="color: var(--amber-600);">0</div>
+              <div class="stat-card clickable" onclick="filterTableByWarnings()" title="Нажмите, чтобы отфильтровать строки со спорными данными">
+                <div class="stat-value" id="statYellow" style="color: var(--amber-primary);">0</div>
                 <div class="stat-label">Спорных полей</div>
               </div>
             </div>
@@ -1466,7 +1617,7 @@
             <!-- 1. Rule violations -->
             <div class="audit-section" id="secViolations" style="display: none;">
               <div class="audit-header">
-                <div class="audit-category-title" style="color: var(--rose-600);">
+                <div class="audit-category-title" style="color: var(--psg-red);">
                   <i data-lucide="alert-octagon" style="width: 16px; height: 16px;"></i>
                   <span>Нарушения регламентов обучения</span>
                 </div>
@@ -1478,7 +1629,7 @@
             <!-- 2. Document package issues -->
             <div class="audit-section" id="secDocs" style="display: none;">
               <div class="audit-header">
-                <div class="audit-category-title" style="color: #4F46E5;">
+                <div class="audit-category-title" style="color: var(--indigo-primary);">
                   <i data-lucide="file-warning" style="width: 16px; height: 16px;"></i>
                   <span>Комплектность пакета документов</span>
                 </div>
@@ -1490,7 +1641,7 @@
             <!-- 3. Yellow Highlighted fields -->
             <div class="audit-section" id="secYellow" style="display: none;">
               <div class="audit-header">
-                <div class="audit-category-title" style="color: var(--amber-600);">
+                <div class="audit-category-title" style="color: var(--amber-primary);">
                   <i data-lucide="alert-triangle" style="width: 16px; height: 16px;"></i>
                   <span>Спорные данные (подсвечены желтым в 1С)</span>
                 </div>
@@ -1517,9 +1668,23 @@
             <i data-lucide="table"></i>
             <span>Предпросмотр таблицы для 1С (Лист_1)</span>
           </div>
-          <span style="font-size: 0.75rem; color: var(--slate-500); font-family: var(--font-mono);">Бирюзовые блоки: #DCFFDD • Спорные: желтые</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">Бирюзовые блоки: #DCFFDD • Спорные: желтые</span>
         </div>
-        <div class="card-body" style="padding: 0.75rem;">
+        <div class="card-body" style="padding: 0.85rem;">
+          
+          <!-- Interactive Search and Filter Bar -->
+          <div class="table-toolbar">
+            <div class="table-search-box">
+              <i data-lucide="search"></i>
+              <input type="text" class="table-search-input" id="tableSearchInput" placeholder="Поиск по ФИО, СНИЛС или должности..." oninput="handleTableSearch(this.value)">
+            </div>
+            <div class="table-filters">
+              <button type="button" class="filter-chip active" id="filterAll" onclick="setTableFilter('all')">Все строки</button>
+              <button type="button" class="filter-chip" id="filterYellow" onclick="setTableFilter('yellow')">⚠️ Со спорными</button>
+              <button type="button" class="filter-chip" id="filterClean" onclick="setTableFilter('clean')">✓ Без замечаний</button>
+            </div>
+          </div>
+
           <div class="table-container" id="tablePreviewContainer"></div>
         </div>
       </div>
@@ -1528,14 +1693,76 @@
 
   </main>
 
+  <!-- Floating Toast Notifications Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
   <footer>
     <div>ЧОУ ДПО ЦЕНТР «ПСГ» • Автоматизированное рабочее место методиста 1С</div>
-    <div style="margin-top: 0.25rem; font-size: 0.7rem; color: var(--slate-400);">Соответствие Приказу Минтруда № 2464 и стандартам ФИС ФРДО</div>
+    <div style="margin-top: 0.25rem; font-size: 0.7rem; color: var(--text-faint);">Соответствие Приказу Минтруда № 2464 и стандартам ФИС ФРДО</div>
   </footer>
 
   <script>
     let activeTab = 'file';
     let selectedFiles = [];
+    let currentProcessedData = null;
+    let currentTableFilter = 'all';
+    let currentSearchQuery = '';
+
+    // Modern Silicon Valley Toast Engine
+    const toast = {
+      show(message, type = 'info', duration = 4000) {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+
+        const el = document.createElement('div');
+        el.className = `toast toast-${type}`;
+
+        const iconMap = {
+          success: 'check-circle',
+          error: 'alert-octagon',
+          warning: 'alert-triangle',
+          info: 'info'
+        };
+
+        const iconName = iconMap[type] || 'info';
+        el.innerHTML = `
+          <i data-lucide="${iconName}"></i>
+          <span style="flex:1;">${message}</span>
+          <span style="cursor:pointer; opacity:0.6; padding:2px;" onclick="this.parentElement.remove()">✕</span>
+          <div class="toast-progress"></div>
+        `;
+
+        container.appendChild(el);
+        refreshIcons();
+
+        // GSAP Slide in
+        gsap.fromTo(el, 
+          { opacity: 0, y: 20, scale: 0.96 }, 
+          { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: 'power3.out' }
+        );
+
+        // Progress bar animation
+        const prog = el.querySelector('.toast-progress');
+        if (prog) {
+          gsap.to(prog, { width: '0%', duration: duration / 1000, ease: 'linear' });
+        }
+
+        setTimeout(() => {
+          gsap.to(el, {
+            opacity: 0,
+            y: 10,
+            scale: 0.95,
+            duration: 0.25,
+            ease: 'power2.in',
+            onComplete: () => el.remove()
+          });
+        }, duration);
+      },
+      success(msg, dur) { this.show(msg, 'success', dur); },
+      error(msg, dur) { this.show(msg, 'error', dur); },
+      warning(msg, dur) { this.show(msg, 'warning', dur); },
+      info(msg, dur) { this.show(msg, 'info', dur); }
+    };
 
     // Initialize Lucide Icons
     function refreshIcons() {
@@ -1546,22 +1773,28 @@
 
     function switchTab(tab) {
       activeTab = tab;
-      const tabBtns = document.querySelectorAll('.tab-btn');
-      const tabPanes = document.querySelectorAll('.tab-pane');
-      
-      tabBtns.forEach(b => b.classList.remove('active'));
-      tabPanes.forEach(p => p.classList.remove('active'));
+      const tabBtnFiles = document.getElementById('tabBtnFiles');
+      const tabBtnText = document.getElementById('tabBtnText');
+      const tabFile = document.getElementById('tabFile');
+      const tabText = document.getElementById('tabText');
       
       if (tab === 'file') {
-        tabBtns[0].classList.add('active');
-        document.getElementById('tabFile').classList.add('active');
+        tabBtnFiles.classList.add('active');
+        tabBtnText.classList.remove('active');
+        tabFile.classList.add('active');
+        tabText.classList.remove('active');
       } else {
-        tabBtns[1].classList.add('active');
-        document.getElementById('tabText').classList.add('active');
+        tabBtnText.classList.add('active');
+        tabBtnFiles.classList.remove('active');
+        tabText.classList.add('active');
+        tabFile.classList.remove('active');
       }
 
-      // Animate active tab change smoothly
-      gsap.fromTo('.tab-pane.active', { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.25, ease: 'power2.out' });
+      // Smooth content transition
+      gsap.fromTo('.tab-pane.active', 
+        { opacity: 0, y: 8 }, 
+        { opacity: 1, y: 0, duration: 0.25, ease: 'power2.out' }
+      );
       refreshIcons();
     }
 
@@ -1577,17 +1810,40 @@
       } else {
         content.classList.add('open');
         btn.classList.add('open');
-        gsap.fromTo(content, { opacity: 0, height: 0 }, { opacity: 1, height: 'auto', duration: 0.3, ease: 'power2.out' });
+        gsap.fromTo(content, 
+          { opacity: 0, height: 0 }, 
+          { opacity: 1, height: 'auto', duration: 0.3, ease: 'power2.out' }
+        );
       }
       refreshIcons();
     }
 
-    // Dropzone logic
+    // Dropzone logic with Drag Counter
     const dropzone = document.getElementById('dropzone');
-    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-    dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
+    let dragCounter = 0;
+
+    dropzone.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dragCounter++;
+      dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragover', (e) => { 
+      e.preventDefault(); 
+      dropzone.classList.add('dragover'); 
+    });
+
+    dropzone.addEventListener('dragleave', () => { 
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        dropzone.classList.remove('dragover');
+      }
+    });
+
     dropzone.addEventListener('drop', (e) => {
       e.preventDefault();
+      dragCounter = 0;
       dropzone.classList.remove('dragover');
       if (e.dataTransfer.files.length) {
         handleFilesSelected(e.dataTransfer.files);
@@ -1597,11 +1853,16 @@
     function handleFilesSelected(files) {
       if (!files || files.length === 0) return;
       
+      let addedCount = 0;
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
         if (!selectedFiles.some(item => item.name === f.name && item.size === f.size)) {
           selectedFiles.push(f);
+          addedCount++;
         }
+      }
+      if (addedCount > 0) {
+        toast.info(`Добавлено файлов: ${addedCount}`);
       }
       renderFilesList();
     }
@@ -1611,13 +1872,30 @@
       renderFilesList();
     }
 
+    function clearAllFiles() {
+      selectedFiles = [];
+      renderFilesList();
+      toast.info('Список файлов очищен');
+    }
+
+    function getFileIcon(name) {
+      const ext = name.split('.').pop().toLowerCase();
+      if (ext === 'xlsx' || ext === 'xls') return '<i data-lucide="file-spreadsheet" style="color:#059669;"></i>';
+      if (ext === 'docx' || ext === 'doc') return '<i data-lucide="file-text" style="color:#2563EB;"></i>';
+      if (ext === 'pdf') return '<i data-lucide="file-text" style="color:#DC2626;"></i>';
+      if (['jpg', 'jpeg', 'png', 'heic', 'webp'].includes(ext)) return '<i data-lucide="image" style="color:#7C3AED;"></i>';
+      return '<i data-lucide="file" style="color:#64748B;"></i>';
+    }
+
     function renderFilesList() {
       const container = document.getElementById('filesListContainer');
       const addMoreBtn = document.getElementById('addMoreBtn');
+      const clearAllBtn = document.getElementById('clearAllFilesBtn');
       
       if (selectedFiles.length === 0) {
         container.style.display = 'none';
         addMoreBtn.style.display = 'none';
+        if (clearAllBtn) clearAllBtn.style.display = 'none';
         dropzone.style.display = 'block';
         return;
       }
@@ -1630,19 +1908,23 @@
         const sizeKb = (file.size / 1024).toFixed(1);
         item.innerHTML = `
           <div class="file-item-name">
-            <i data-lucide="file-check"></i>
-            <span>${file.name} <small style="color: var(--slate-500); font-family: var(--font-mono);">(${sizeKb} KB)</small></span>
+            ${getFileIcon(file.name)}
+            <span>${file.name} <small style="color: var(--text-muted); font-family: var(--font-mono);">(${sizeKb} KB)</small></span>
           </div>
-          <button type="button" class="file-remove-btn" onclick="removeFile(${idx})" title="Удалить файл">✖</button>
+          <button type="button" class="file-remove-btn" onclick="removeFile(${idx})" title="Удалить файл">✕</button>
         `;
         container.appendChild(item);
       });
 
       container.style.display = 'flex';
       addMoreBtn.style.display = 'inline-flex';
+      if (clearAllBtn) clearAllBtn.style.display = 'inline-flex';
       dropzone.style.display = 'none';
       
-      gsap.fromTo('.file-item', { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: 0.2, stagger: 0.05, ease: 'power2.out' });
+      gsap.fromTo('.file-item', 
+        { opacity: 0, x: -8 }, 
+        { opacity: 1, x: 0, duration: 0.2, stagger: 0.04, ease: 'power2.out' }
+      );
       refreshIcons();
     }
 
@@ -1671,6 +1953,7 @@
         endD.setDate(today.getDate() + 5);
       }
       document.getElementById('overrideDates').value = `${formatDate(startD)} - ${formatDate(endD)}`;
+      updateActiveOverridesIndicator();
     }
 
     function handleCategoryChange(cat) {
@@ -1686,6 +1969,7 @@
         endD.setDate(today.getDate() + 3);
         document.getElementById('overrideDates').value = `${formatDate(today)} - ${formatDate(endD)}`;
       }
+      updateActiveOverridesIndicator();
     }
 
     function autoFillDatesForCategory() {
@@ -1694,6 +1978,22 @@
         handleCategoryChange(cat);
       } else {
         setDatePreset('today_14');
+      }
+      toast.success('Сроки обучения рассчитаны автоматически');
+    }
+
+    function updateActiveOverridesIndicator() {
+      const chip = document.getElementById('activeOverridesChip');
+      if (!chip) return;
+      const hasCat = Boolean(document.getElementById('overrideCategory').value);
+      const hasProg = Boolean(document.getElementById('overrideProgram').value);
+      const hasDates = Boolean(document.getElementById('overrideDates').value);
+      const hasPos = Boolean(document.getElementById('overridePosition').value);
+      
+      if (hasCat || hasProg || hasDates || hasPos) {
+        chip.style.display = 'inline-block';
+      } else {
+        chip.style.display = 'none';
       }
     }
 
@@ -1720,7 +2020,9 @@
         c.checked = false;
       });
 
-      // Visual feedback: icon spin and subtle border flash
+      updateActiveOverridesIndicator();
+
+      // Visual feedback
       const btn = document.getElementById('clearManualParams');
       if (btn) {
         const icon = btn.querySelector('i');
@@ -1732,10 +2034,11 @@
       const targetInputs = [cat, prog, dates, pos].filter(Boolean);
       if (typeof gsap !== 'undefined' && targetInputs.length) {
         gsap.fromTo(targetInputs, 
-          { backgroundColor: 'rgba(229, 30, 37, 0.08)' }, 
+          { backgroundColor: 'rgba(220, 38, 38, 0.08)' }, 
           { backgroundColor: '', duration: 0.45, ease: 'power2.out' }
         );
       }
+      toast.info('Ручные параметры очищены');
     }
 
     function clearManualParams(e) {
@@ -1745,18 +2048,23 @@
     function updateSelectedPrograms() {
       const checked = Array.from(document.querySelectorAll('input[name="progChip"]:checked')).map(c => c.value);
       document.getElementById('overrideProgram').value = checked.join('; ');
+      updateActiveOverridesIndicator();
     }
 
     // Auto-formatting mask for study dates input: DD.MM.YYYY - DD.MM.YYYY
     const datesInput = document.getElementById('overrideDates');
     datesInput.addEventListener('input', function(e) {
       if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward') {
+        updateActiveOverridesIndicator();
         return;
       }
       
       let val = this.value;
       let digits = val.replace(/[^0-9]/g, '').slice(0, 16);
-      if (!digits.length) return;
+      if (!digits.length) {
+        updateActiveOverridesIndicator();
+        return;
+      }
       
       if (val.endsWith('.') && (digits.length === 1 || digits.length === 3 || digits.length === 9 || digits.length === 11)) {
         if (digits.length === 1) digits = '0' + digits;
@@ -1786,6 +2094,7 @@
       }
       
       this.value = formatted;
+      updateActiveOverridesIndicator();
     });
 
     // AI Toggle & LocalStorage persistence & Real-time Server Diagnostics
@@ -1794,10 +2103,10 @@
       if (!diagBox) return;
 
       diagBox.style.display = 'block';
-      diagBox.style.backgroundColor = 'var(--slate-100)';
-      diagBox.style.color = 'var(--slate-600)';
-      diagBox.style.border = '1px solid var(--slate-200)';
-      diagBox.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;"><span class="spinner" style="width:12px; height:12px; border-width:2px; display:inline-block;"></span> Проверка подключения к OpenAI на сервере...</span>';
+      diagBox.style.backgroundColor = 'var(--bg-subtle)';
+      diagBox.style.color = 'var(--text-secondary)';
+      diagBox.style.border = '1px solid var(--border-subtle)';
+      diagBox.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;"><span class="spinner" style="width:12px; height:12px; border-width:2px; display:inline-block; border-top-color:var(--emerald-primary);"></span> Проверка подключения к OpenAI на сервере...</span>';
 
       try {
         const res = await fetch('/api/ai-status');
@@ -1809,14 +2118,14 @@
             diagBox.style.border = '1px solid rgba(239, 68, 68, 0.25)';
             diagBox.innerHTML = `<strong>⚠️ Служба на сервере еще не обновлена (404):</strong> Эндпоинт <code>/api/ai-status</code> отсутствует.<br>` +
               `Пожалуйста, выполните в терминале сервера команду обновления:<br>` +
-              `<code style="display:block; margin:6px 0; padding:6px 10px; background:#1E293B; color:#38BDF8; border-radius:4px; font-size:0.75rem; user-select:all;">cd /opt/psg-1c-agent && git pull origin main && systemctl restart psg-agent</code>` +
-              `<button type="button" onclick="checkAiConnectionStatus()" style="margin-top:6px; padding:4px 10px; border-radius:4px; background:#FFFFFF; border:1px solid #CBD5E1; font-size:0.75rem; font-weight:600; cursor:pointer; color:#1E293B;">↻ Повторить проверку</button>`;
+              `<code style="display:block; margin:6px 0; padding:6px 10px; background:#0B0F17; color:#38BDF8; border-radius:4px; font-size:0.75rem; user-select:all;">cd /opt/psg-1c-agent && git pull origin main && systemctl restart psg-agent</code>` +
+              `<button type="button" onclick="checkAiConnectionStatus()" style="margin-top:6px; padding:4px 10px; border-radius:4px; background:#FFFFFF; border:1px solid #CBD5E1; font-size:0.75rem; font-weight:600; cursor:pointer; color:#0F172A;">↻ Повторить проверку</button>`;
             return;
           }
           if (res.status === 502 || res.status === 504) {
-            diagBox.style.backgroundColor = 'rgba(245, 158, 11, 0.1)';
+            diagBox.style.backgroundColor = 'var(--amber-subtle)';
             diagBox.style.color = '#92400E';
-            diagBox.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+            diagBox.style.border = '1px solid var(--amber-border)';
             diagBox.innerHTML = `<strong>⚠️ Служба перезапускается или временно недоступна (HTTP ${res.status}):</strong> Подождите несколько секунд.` +
               `<br><button type="button" onclick="checkAiConnectionStatus()" style="margin-top:6px; padding:4px 10px; border-radius:4px; background:#FFFFFF; border:1px solid #CBD5E1; font-size:0.75rem; font-weight:600; cursor:pointer; color:#92400E;">↻ Повторить проверку</button>`;
             return;
@@ -1838,25 +2147,26 @@
         const data = await res.json();
 
         if (data.ok) {
-          diagBox.style.backgroundColor = 'rgba(16, 185, 129, 0.08)';
+          diagBox.style.backgroundColor = 'var(--emerald-subtle)';
           diagBox.style.color = '#065F46';
-          diagBox.style.border = '1px solid rgba(16, 185, 129, 0.25)';
+          diagBox.style.border = '1px solid var(--emerald-border)';
           diagBox.innerHTML = `<strong>✓ Связь с OpenAI установлена:</strong> Ключ <code>${data.masked_key}</code> активен. ИИ готов к оптическому распознаванию документов.` +
-            `<button type="button" onclick="checkAiConnectionStatus()" title="Обновить статус" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#FFFFFF; border:1px solid #CBD5E1; font-size:0.72rem; font-weight:600; cursor:pointer; color:#065F46;">↻</button>`;
+            `<button type="button" onclick="checkAiConnectionStatus()" title="Обновить статус" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#FFFFFF; border:1px solid var(--emerald-border); font-size:0.72rem; font-weight:600; cursor:pointer; color:#065F46;">↻</button>`;
+          toast.success('ИИ активен и подключен к серверу');
         } else {
-          diagBox.style.backgroundColor = 'rgba(245, 158, 11, 0.1)';
+          diagBox.style.backgroundColor = 'var(--amber-subtle)';
           diagBox.style.color = '#92400E';
-          diagBox.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+          diagBox.style.border = '1px solid var(--amber-border)';
           diagBox.innerHTML = `<strong>⚠️ Внимание:</strong> ${data.message}` +
             `<br><button type="button" onclick="checkAiConnectionStatus()" style="margin-top:6px; padding:4px 10px; border-radius:4px; background:#FFFFFF; border:1px solid #CBD5E1; font-size:0.75rem; font-weight:600; cursor:pointer; color:#92400E;">↻ Повторить проверку</button>`;
         }
       } catch (err) {
-        diagBox.style.backgroundColor = 'rgba(245, 158, 11, 0.1)';
+        diagBox.style.backgroundColor = 'var(--amber-subtle)';
         diagBox.style.color = '#92400E';
-        diagBox.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+        diagBox.style.border = '1px solid var(--amber-border)';
         let displayMsg = err.message || '';
         if (displayMsg.includes('pattern') || err.name === 'SyntaxError') {
-          displayMsg = 'Сервер вернул некорректный ответ (не JSON). Служба на сервере не была обновлена: выполните <code>cd /opt/psg-1c-agent && git pull origin main && systemctl restart psg-agent</code>';
+          displayMsg = 'Сервер вернул некорректный ответ. Служба на сервере не была обновлена: выполните <code>cd /opt/psg-1c-agent && git pull origin main && systemctl restart psg-agent</code>';
         }
         diagBox.innerHTML = `<strong>⚠️ Ошибка проверки ИИ:</strong> ${displayMsg}` +
           `<br><button type="button" onclick="checkAiConnectionStatus()" style="margin-top:6px; padding:4px 10px; border-radius:4px; background:#FFFFFF; border:1px solid #CBD5E1; font-size:0.75rem; font-weight:600; cursor:pointer; color:#92400E;">↻ Повторить проверку</button>`;
@@ -1884,6 +2194,7 @@
       } else {
         const diagBox = document.getElementById('aiDiagBox');
         if (diagBox) diagBox.style.display = 'none';
+        toast.info('Режим ИИ выключен. Активен локальный Tesseract OCR');
       }
     }
 
@@ -1895,67 +2206,75 @@
 
       if (checked) {
         card.classList.add('active');
-        badge.classList.add('active');
-        badge.innerHTML = '<i data-lucide="sparkles" style="width: 12px; height: 12px;"></i><span>ИИ активен</span>';
+        badge.innerHTML = '<i data-lucide="sparkles" style="width: 12px; height: 12px; color: var(--emerald-primary);"></i><span>ИИ активен</span>';
       } else {
         card.classList.remove('active');
-        badge.classList.remove('active');
         badge.innerHTML = '<i data-lucide="zap" style="width: 12px; height: 12px;"></i><span>Локальный Tesseract</span>';
       }
       refreshIcons();
     }
 
+    // Process Form Submit
     async function handleFormSubmit(e) {
       e.preventDefault();
       
       const rawText = document.getElementById('rawTextInput').value.trim();
-      
-      if (selectedFiles.length === 0 && !rawText) {
-        alert('Пожалуйста, добавьте файл(ы) заявки (СНИЛС, паспорт, docx, xlsx) или введите текст сообщения.');
+      if (activeTab === 'file' && selectedFiles.length === 0) {
+        toast.warning('Пожалуйста, выберите хотя бы один файл заявки для обработки');
+        return;
+      }
+      if (activeTab === 'text' && !rawText) {
+        toast.warning('Пожалуйста, вставьте текст входящей заявки');
         return;
       }
 
-      // UI state
-      document.getElementById('btnSpinner').style.display = 'inline-block';
+      // UI Loading state
+      const submitBtn = document.getElementById('submitBtn');
+      const btnText = document.getElementById('btnText');
       const btnIcon = document.getElementById('btnIcon');
-      if (btnIcon) btnIcon.style.display = 'none';
-      document.getElementById('btnText').textContent = 'Обработка данных...';
-      document.getElementById('submitBtn').disabled = true;
-
+      const btnSpinner = document.getElementById('btnSpinner');
       const stepper = document.getElementById('processingStepper');
       const stepperText = document.getElementById('stepperText');
-      stepper.style.display = 'block';
-      stepperText.textContent = '1/4. Чтение входящих файлов и изображений...';
+      const stepperProgress = document.getElementById('stepperProgress');
+      const stepperTimer = document.getElementById('stepperTimer');
 
-      let stepTimer = setTimeout(() => {
-        stepperText.textContent = '2/4. Оптическое распознавание (ИИ/OCR) и нормализация...';
+      submitBtn.disabled = true;
+      btnText.textContent = 'Идет обработка заявки...';
+      if (btnIcon) btnIcon.style.display = 'none';
+      btnSpinner.style.display = 'inline-block';
+      stepper.style.display = 'block';
+
+      // Live Timer
+      const startTime = performance.now();
+      const timerInterval = setInterval(() => {
+        const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+        if (stepperTimer) stepperTimer.textContent = `${elapsed}s`;
+      }, 100);
+
+      // Sequencer stages
+      stepperProgress.style.width = '20%';
+      stepperText.textContent = '1/4. Извлечение данных и оптический анализ...';
+
+      const stepTimer1 = setTimeout(() => {
+        stepperProgress.style.width = '50%';
+        stepperText.textContent = '2/4. Семантический NLP-анализ и нормализация полей...';
       }, 700);
 
-      let stepTimer2 = setTimeout(() => {
-        stepperText.textContent = '3/4. Проверка регламентов Минтруда 2026 и падежей...';
-      }, 1800);
-
-      // Clear previous panels
-      ['secViolations', 'secDocs', 'secYellow'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-      });
-      ['listViolations', 'listDocs', 'listYellow'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.innerHTML = '';
-      });
+      const stepTimer2 = setTimeout(() => {
+        stepperProgress.style.width = '80%';
+        stepperText.textContent = '3/4. Проверка регламентов Минтруда и расчет дат...';
+      }, 1400);
 
       const formData = new FormData();
-      if (selectedFiles.length > 0) {
-        selectedFiles.forEach(file => {
-          formData.append('files', file);
-        });
-      }
-      if (rawText) {
+      if (activeTab === 'file') {
+        for (let i = 0; i < selectedFiles.length; i++) {
+          formData.append('files', selectedFiles[i]);
+        }
+      } else {
         formData.append('raw_text', rawText);
       }
 
-      // Manual overrides
+      // Append Overrides
       formData.append('category', document.getElementById('overrideCategory').value);
       formData.append('program', document.getElementById('overrideProgram').value);
       formData.append('study_dates', document.getElementById('overrideDates').value);
@@ -1979,8 +2298,9 @@
           body: formData
         });
 
-        clearTimeout(stepTimer);
+        clearTimeout(stepTimer1);
         clearTimeout(stepTimer2);
+        stepperProgress.style.width = '95%';
         stepperText.textContent = '4/4. Формирование эталонной таблицы 1С...';
 
         if (!response.ok) {
@@ -2002,11 +2322,17 @@
         }
 
         const data = await response.json();
+        stepperProgress.style.width = '100%';
         renderResults(data);
       } catch (err) {
-        alert('Ошибка при обработке заявки: ' + err.message);
+        toast.error('Ошибка при обработке заявки: ' + err.message);
       } finally {
-        stepper.style.display = 'none';
+        clearInterval(timerInterval);
+        setTimeout(() => {
+          stepper.style.display = 'none';
+          stepperProgress.style.width = '0%';
+        }, 500);
+
         document.getElementById('btnSpinner').style.display = 'none';
         if (btnIcon) btnIcon.style.display = 'inline-block';
         document.getElementById('btnText').textContent = 'Обработать заявку и сформировать файл 1С';
@@ -2017,10 +2343,11 @@
 
     function renderResults(data) {
       if (!data.success) {
-        alert('Ошибка: ' + (data.error || 'Не удалось обработать заявку'));
+        toast.error('Ошибка: ' + (data.error || 'Не удалось обработать заявку'));
         return;
       }
 
+      currentProcessedData = data;
       document.getElementById('initialPlaceholder').style.display = 'none';
       document.getElementById('resultsContent').style.display = 'block';
       document.getElementById('previewCard').style.display = 'block';
@@ -2037,14 +2364,14 @@
         engineBadge.style.display = 'inline-flex';
         const displayEngineName = data.ocr_engine.replace(' (GPT-4o-mini)', '');
         if (data.ocr_engine.includes('OpenAI')) {
-          engineBadge.style.backgroundColor = 'var(--emerald-100)';
-          engineBadge.style.color = '#14532D';
-          engineBadge.style.borderColor = '#86EFAC';
+          engineBadge.style.backgroundColor = 'var(--emerald-subtle)';
+          engineBadge.style.color = '#065F46';
+          engineBadge.style.borderColor = 'var(--emerald-border)';
           engineBadge.innerHTML = '<i data-lucide="sparkles" style="width: 12px; height: 12px;"></i><span>' + displayEngineName + '</span>';
         } else {
-          engineBadge.style.backgroundColor = 'var(--slate-100)';
-          engineBadge.style.color = 'var(--slate-700)';
-          engineBadge.style.borderColor = 'var(--slate-300)';
+          engineBadge.style.backgroundColor = 'var(--bg-subtle)';
+          engineBadge.style.color = 'var(--text-secondary)';
+          engineBadge.style.borderColor = 'var(--border-subtle)';
           engineBadge.innerHTML = '<i data-lucide="zap" style="width: 12px; height: 12px;"></i><span>' + displayEngineName + '</span>';
         }
       }
@@ -2054,15 +2381,18 @@
       if (data.audit.rule_violations.length > 0) {
         badge.className = 'audit-badge badge-error';
         badge.innerHTML = '<i data-lucide="alert-octagon" style="width: 12px; height: 12px;"></i><span>Обнаружены нарушения регламента</span>';
+        toast.warning(`Обнаружено нарушений регламентов: ${data.audit.rule_violations.length}`);
       } else if (data.audit.warnings_count > 0 || data.audit.document_issues.length > 0) {
         badge.className = 'audit-badge badge-warning';
-        badge.innerHTML = '<i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i><span>Требуется проверка менеджера</span>';
+        badge.innerHTML = '<i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i><span>Требуется проверка методиста</span>';
+        toast.info('Заявка сформирована со спорными полями для проверки');
       } else {
         badge.className = 'audit-badge';
-        badge.style.backgroundColor = 'var(--emerald-100)';
-        badge.style.color = '#14532D';
-        badge.style.borderColor = '#86EFAC';
-        badge.innerHTML = '<i data-lucide="check-circle-2" style="width: 12px; height: 12px;"></i><span>Заявка выверена 100%</span>';
+        badge.style.backgroundColor = 'var(--emerald-subtle)';
+        badge.style.color = '#065F46';
+        badge.style.borderColor = 'var(--emerald-border)';
+        badge.innerHTML = '<i data-lucide="check-circle-2" style="width: 12px; height: 12px; color:var(--emerald-primary);"></i><span>Заявка выверена 100%</span>';
+        toast.success('Заявка успешно выверена и готова к 1С!');
       }
 
       // 1. Violations
@@ -2075,7 +2405,7 @@
         data.audit.rule_violations.forEach(v => {
           const item = document.createElement('div');
           item.className = 'audit-item audit-item-error';
-          item.innerHTML = `<i data-lucide="x-circle" style="width: 16px; height: 16px; flex-shrink: 0; color: #EF4444; margin-top: 2px;"></i><div><strong>${v.student}:</strong> ${v.message}</div>`;
+          item.innerHTML = `<i data-lucide="x-circle" style="width: 16px; height: 16px; flex-shrink: 0; color: var(--psg-red); margin-top: 2px;"></i><div><strong>${v.student}:</strong> ${v.message}</div>`;
           listViolations.appendChild(item);
         });
       } else {
@@ -2092,7 +2422,7 @@
         data.audit.document_issues.forEach(d => {
           const item = document.createElement('div');
           item.className = 'audit-item audit-item-doc';
-          item.innerHTML = `<i data-lucide="file-question" style="width: 16px; height: 16px; flex-shrink: 0; color: #6366F1; margin-top: 2px;"></i><div><strong>${d.student} (${d.category}):</strong> ${d.message}</div>`;
+          item.innerHTML = `<i data-lucide="file-question" style="width: 16px; height: 16px; flex-shrink: 0; color: var(--indigo-primary); margin-top: 2px;"></i><div><strong>${d.student} (${d.category}):</strong> ${d.message}</div>`;
           listDocs.appendChild(item);
         });
       } else {
@@ -2110,7 +2440,7 @@
           const item = document.createElement('div');
           item.className = 'audit-item audit-item-warning';
           const title = w.student ? w.student : w.program;
-          item.innerHTML = `<i data-lucide="alert-circle" style="width: 16px; height: 16px; flex-shrink: 0; color: #F59E0B; margin-top: 2px;"></i><div><strong>${title} (${w.field || 'программа'}):</strong> ${w.reason}</div>`;
+          item.innerHTML = `<i data-lucide="alert-circle" style="width: 16px; height: 16px; flex-shrink: 0; color: var(--amber-primary); margin-top: 2px;"></i><div><strong>${title} (${w.field || 'программа'}):</strong> ${w.reason}</div>`;
           listYellow.appendChild(item);
         });
       } else {
@@ -2121,12 +2451,18 @@
       const downloadBtn = document.getElementById('downloadBtn');
       downloadBtn.href = '/api/download/' + encodeURIComponent(data.output_filename);
 
-      // Render 1C Preview Table
+      // Render 1C Preview Table with current filters
       render1CTable(data);
 
       // Smooth entrance of results
-      gsap.fromTo('#resultsContent', { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' });
-      gsap.fromTo('#previewCard', { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.35, delay: 0.1, ease: 'power2.out' });
+      gsap.fromTo('#resultsContent', 
+        { opacity: 0, y: 12 }, 
+        { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' }
+      );
+      gsap.fromTo('#previewCard', 
+        { opacity: 0, y: 12 }, 
+        { opacity: 1, y: 0, duration: 0.35, delay: 0.1, ease: 'power2.out' }
+      );
       
       refreshIcons();
     }
@@ -2137,12 +2473,40 @@
       const start = { val: 0 };
       gsap.to(start, {
         val: targetVal,
-        duration: 0.5,
-        ease: 'power1.out',
+        duration: 0.6,
+        ease: 'power2.out',
         onUpdate: () => {
           el.textContent = Math.round(start.val);
         }
       });
+    }
+
+    // Interactive Search and Table Filters
+    function handleTableSearch(val) {
+      currentSearchQuery = val.trim().toLowerCase();
+      if (currentProcessedData) {
+        render1CTable(currentProcessedData);
+      }
+    }
+
+    function setTableFilter(filter) {
+      currentTableFilter = filter;
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      if (filter === 'all') document.getElementById('filterAll').classList.add('active');
+      if (filter === 'yellow') document.getElementById('filterYellow').classList.add('active');
+      if (filter === 'clean') document.getElementById('filterClean').classList.add('active');
+      
+      if (currentProcessedData) {
+        render1CTable(currentProcessedData);
+      }
+    }
+
+    function filterTableByWarnings() {
+      setTableFilter('yellow');
+      const previewCard = document.getElementById('previewCard');
+      if (previewCard) {
+        previewCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     }
 
     function render1CTable(data) {
@@ -2168,12 +2532,33 @@
       // Program blocks (TURQUOISE / БИРЮЗОВЫЙ)
       for (const [progName, progInfo] of Object.entries(data.grouped_data)) {
         const isYellowProg = (!progInfo.is_canonical || progInfo.warning);
+        
+        // Filter students according to search and filter chips
+        const filteredStudents = progInfo.students.filter(s => {
+          const hasYellow = Object.keys(s.yellow_flags || {}).length > 0;
+          if (currentTableFilter === 'yellow' && !hasYellow) return false;
+          if (currentTableFilter === 'clean' && hasYellow) return false;
+          
+          if (currentSearchQuery) {
+            const query = currentSearchQuery;
+            const matchFio = (s.fio_nom || '').toLowerCase().includes(query);
+            const matchSnils = (s.snils || '').toLowerCase().includes(query);
+            const matchPos = (s.position || '').toLowerCase().includes(query);
+            return matchFio || matchSnils || matchPos;
+          }
+          return true;
+        });
+
+        if (filteredStudents.length === 0 && (currentSearchQuery || currentTableFilter !== 'all')) {
+          continue;
+        }
+
         html += `<tr><td colspan="9" class="row-prog-1c ${isYellowProg ? 'yellow-prog' : ''}">${progName}</td></tr>`;
         
-        progInfo.students.forEach((s, idx) => {
+        filteredStudents.forEach((s, idx) => {
           const flags = s.yellow_flags || {};
           
-          html += `<tr>
+          html += `<tr class="student-row">
             <td style="text-align: right;">${idx + 1}</td>
             <td class="${flags.nom_fio ? 'cell-yellow' : ''}" data-tooltip="${flags.nom_fio || ''}">${s.fio_nom || ''}</td>
             <td class="${flags.dat_fio ? 'cell-yellow' : ''}" data-tooltip="${flags.dat_fio || ''}">${s.fio_dat || ''}</td>
