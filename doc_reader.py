@@ -688,11 +688,12 @@ def parse_incoming_application(
                 "program": "",
                 "engine": vision_res.get('engine', '')
             })
-        return {
-            "title": f"ЗАЯВКА НА ОБУЧЕНИЕ от {datetime.date.today().strftime('%d.%m.%Y')} г.",
-            "students": students,
-            "engine": vision_res.get('engine', '')
-        }
+            return {
+                "title": f"ЗАЯВКА НА ОБУЧЕНИЕ от {datetime.date.today().strftime('%d.%m.%Y')} г.",
+                "students": students,
+                "engine": vision_res.get('engine', ''),
+                "ai_error": vision_res.get('ai_error')
+            }
     else:
         # Check if text file
         if ext in ('.txt', '.csv'):

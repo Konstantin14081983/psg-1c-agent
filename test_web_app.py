@@ -523,6 +523,46 @@ def test_text_input_nlp_autocorrection_and_audit():
     assert any("Фанильевичывсвы" in w.get("reason", "") for w in warnings4)
     print("✓ test_text_input_nlp_autocorrection_and_audit: date with 'г' and tail garbage passed")
 
+def test_ai_status_endpoint():
+    """
+    Test GET /api/ai-status diagnostics under various conditions.
+    """
+    from unittest.mock import patch, MagicMock
+
+    # 1. Without key
+    with patch("ai_vision.get_api_key", return_value=None):
+        res = client.get("/api/ai-status")
+        assert res.status_code == 200
+        j = res.json()
+        assert j["ok"] is False
+        assert j["code"] == "NO_KEY"
+
+    # 2. With valid key and mock 200 response
+    with patch("requests.get") as mock_get, patch("ai_vision.get_api_key", return_value="sk-proj-validtestkey12345"):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_get.return_value = mock_resp
+        res = client.get("/api/ai-status")
+        assert res.status_code == 200
+        j = res.json()
+        assert j["ok"] is True
+        assert j["code"] == "OK"
+
+    # 3. With 403 Russian geoblock
+    with patch("requests.get") as mock_get, patch("ai_vision.get_api_key", return_value="sk-proj-validtestkey12345"):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 403
+        mock_resp.text = "unsupported_country_region_territory"
+        mock_get.return_value = mock_resp
+        res = client.get("/api/ai-status")
+        assert res.status_code == 200
+        j = res.json()
+        assert j["ok"] is False
+        assert j["code"] == "GEOBLOCK_403"
+        assert "OPENAI_BASE_URL" in j["message"]
+
+    print("✓ test_ai_status_endpoint passed")
+
 if __name__ == "__main__":
     test_homepage()
     test_errors_sample_file()
@@ -538,6 +578,7 @@ if __name__ == "__main__":
     test_ai_toggle_and_mocked_execution()
     test_ai_fallback_to_tesseract_on_api_error()
     test_text_input_nlp_autocorrection_and_audit()
+    test_ai_status_endpoint()
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")
 
 

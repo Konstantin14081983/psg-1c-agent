@@ -63,6 +63,13 @@ HTML_TEMPLATE = get_html_content()
 async def index():
     return HTMLResponse(content=get_html_content())
 
+@app.get("/api/ai-status")
+async def get_ai_status():
+    """Returns OpenAI connection status, key presence, and diagnostics."""
+    import ai_vision
+    status = ai_vision.check_ai_connection()
+    return JSONResponse(content=status)
+
 @app.post("/api/process")
 async def process_api(
     files: Optional[List[UploadFile]] = File(None),
@@ -74,7 +81,7 @@ async def process_api(
     has_diploma: Optional[bool] = Form(False),
     has_photo: Optional[bool] = Form(False),
     has_certificate: Optional[bool] = Form(False),
-    use_ai: Optional[bool] = Form(False),
+    use_ai: Optional[Any] = Form(False),
     openai_api_key: Optional[str] = Form(None)
 ):
     saved_file_paths = []
@@ -100,12 +107,14 @@ async def process_api(
             }
         }
 
+        is_ai_enabled = str(use_ai).strip().lower() in ("true", "1", "yes", "on") if use_ai is not None else False
+
         result = psg_agent.process_application(
             input_file=saved_file_paths if saved_file_paths else None,
             raw_text=raw_text if raw_text else None,
             output_file=None,
             manual_overrides=manual_overrides,
-            use_ai=bool(use_ai),
+            use_ai=is_ai_enabled,
             openai_api_key=openai_api_key if openai_api_key else None
         )
 

@@ -94,27 +94,65 @@ TEXT_MESSAGE_EXTRACTION_SYSTEM_PROMPT = """Ты аналитик входящи�
 }
 """
 
+PLACEHOLDER_KEYS = {
+    "sk-proj-your-api-key-here",
+    "your-api-key-here",
+    "your_key",
+    "sk-your-key-here"
+}
+
+def load_env_config() -> Dict[str, str]:
+    """
+    Robustly reads configuration from .env looking in standard locations:
+    1. Directory of current file
+    2. Current working directory
+    3. /opt/psg-1c-agent/.env
+    Handles export prefix, quotes, trailing comments, CRLF, and spaces.
+    """
+    env_vars: Dict[str, str] = {}
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"),
+        os.path.join(os.getcwd(), ".env"),
+        "/opt/psg-1c-agent/.env"
+    ]
+    seen = set()
+    pat = re.compile(r'^\s*(?:export\s+)?(OPENAI_API_KEY|OPENAI_BASE_URL)\s*=\s*[\"\']?([^\"\'#\r\n]+?)[\"\']?\s*(?:#.*)?$', re.I)
+
+    for c_path in candidates:
+        if c_path in seen:
+            continue
+        seen.add(c_path)
+        if os.path.isfile(c_path):
+            try:
+                with open(c_path, "r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        m = pat.match(line)
+                        if m:
+                            k = m.group(1).upper()
+                            v = m.group(2).strip()
+                            if k not in env_vars and v and v not in PLACEHOLDER_KEYS:
+                                env_vars[k] = v
+            except Exception:
+                pass
+    return env_vars
+
 def get_api_key(passed_key: Optional[str] = None) -> Optional[str]:
     """Resolves OpenAI API key from argument, environment, or .env file."""
     if passed_key and str(passed_key).strip():
-        return str(passed_key).strip()
+        k = str(passed_key).strip()
+        if k not in PLACEHOLDER_KEYS:
+            return k
+            
     env_key = os.environ.get("OPENAI_API_KEY")
     if env_key and env_key.strip():
-        return env_key.strip()
+        k = env_key.strip()
+        if k not in PLACEHOLDER_KEYS:
+            return k
         
-    # Check .env file in workspace
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-    if os.path.exists(env_path):
-        try:
-            with open(env_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("OPENAI_API_KEY="):
-                        val = line.split("=", 1)[1].strip().strip('"').strip("'")
-                        if val:
-                            return val
-        except Exception:
-            pass
+    cfg = load_env_config()
+    k = cfg.get("OPENAI_API_KEY")
+    if k and k not in PLACEHOLDER_KEYS:
+        return k
     return None
 
 def get_base_url() -> str:
@@ -122,19 +160,101 @@ def get_base_url() -> str:
     env_url = os.environ.get("OPENAI_BASE_URL")
     if env_url and env_url.strip():
         return env_url.strip().rstrip("/")
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-    if os.path.exists(env_path):
-        try:
-            with open(env_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("OPENAI_BASE_URL="):
-                        val = line.split("=", 1)[1].strip().strip('"').strip("'")
-                        if val:
-                            return val.rstrip("/")
-        except Exception:
-            pass
+    cfg = load_env_config()
+    url = cfg.get("OPENAI_BASE_URL")
+    if url and url.strip():
+        return url.strip().rstrip("/")
     return DEFAULT_BASE_URL.rstrip("/")
+
+def check_ai_connection(api_key: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Performs comprehensive real-time diagnostics of OpenAI API connection.
+    Tests: key detection, .env file presence, base URL, and live API connectivity.
+    """
+    resolved_key = get_api_key(api_key)
+    base_url = get_base_url()
+    
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"),
+        os.path.join(os.getcwd(), ".env"),
+        "/opt/psg-1c-agent/.env"
+    ]
+    found_env_path = next((p for p in candidates if os.path.isfile(p)), None)
+    
+    if not resolved_key:
+        return {
+            "ok": False,
+            "code": "NO_KEY",
+            "message": "API-ключ не найден. Заполните OPENAI_API_KEY в файле /opt/psg-1c-agent/.env на сервере.",
+            "env_file_found": bool(found_env_path),
+            "env_file_path": found_env_path or "Не найден",
+            "base_url": base_url
+        }
+
+    masked_key = (resolved_key[:7] + "..." + resolved_key[-4:]) if len(resolved_key) > 12 else "***"
+
+    try:
+        endpoint = f"{base_url}/models"
+        headers = {"Authorization": f"Bearer {resolved_key}"}
+        resp = requests.get(endpoint, headers=headers, timeout=8)
+
+        if resp.status_code == 200:
+            return {
+                "ok": True,
+                "code": "OK",
+                "message": "Подключение к OpenAI успешно! ИИ активен и готов к распознаванию.",
+                "masked_key": masked_key,
+                "base_url": base_url,
+                "env_file_path": found_env_path
+            }
+        elif resp.status_code == 401:
+            return {
+                "ok": False,
+                "code": "INVALID_KEY",
+                "message": "Ошибка 401: Неверный API-ключ OpenAI. Проверьте правильность ключа в .env",
+                "masked_key": masked_key,
+                "base_url": base_url
+            }
+        elif resp.status_code == 403 or "unsupported_country_region_territory" in resp.text:
+            return {
+                "ok": False,
+                "code": "GEOBLOCK_403",
+                "message": "Ошибка 403: Доступ к api.openai.com заблокирован из РФ. Добавьте в .env: OPENAI_BASE_URL=https://api.proxyapi.ru/openai/v1 (или VseGPT).",
+                "masked_key": masked_key,
+                "base_url": base_url
+            }
+        elif resp.status_code == 429:
+            return {
+                "ok": False,
+                "code": "QUOTA_EXCEEDED",
+                "message": "Ошибка 429: Превышен лимит запросов или на балансе OpenAI закончились средства ($0.00).",
+                "masked_key": masked_key,
+                "base_url": base_url
+            }
+        else:
+            return {
+                "ok": False,
+                "code": f"HTTP_{resp.status_code}",
+                "message": f"Ошибка OpenAI API ({resp.status_code}): {resp.text[:180]}",
+                "masked_key": masked_key,
+                "base_url": base_url
+            }
+    except requests.exceptions.Timeout:
+        return {
+            "ok": False,
+            "code": "TIMEOUT",
+            "message": f"Таймаут: сервер {base_url} не ответил за 8 секунд. Проверьте интернет или прокси.",
+            "masked_key": masked_key,
+            "base_url": base_url
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "code": "CONNECTION_ERROR",
+            "message": f"Сетевая ошибка при обращении к {base_url}: {str(e)}",
+            "masked_key": masked_key,
+            "base_url": base_url
+        }
 
 def encode_image_to_base64(image_path: str, max_dimension: int = 2048) -> Tuple[str, str]:
     """
@@ -235,9 +355,19 @@ def analyze_document_with_ai(
 
         resp = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
         if resp.status_code != 200:
+            err_msg = f"Ошибка OpenAI API ({resp.status_code}): {resp.text[:200]}"
+            if resp.status_code == 403 or "unsupported_country_region_territory" in resp.text:
+                err_msg = (
+                    "Ошибка 403 (Доступ к api.openai.com заблокирован из РФ). "
+                    "Укажите в файле .env шлюз: OPENAI_BASE_URL=https://api.proxyapi.ru/openai/v1 (или https://api.vsegpt.ru/v1)"
+                )
+            elif resp.status_code == 401:
+                err_msg = "Ошибка 401: Неверный API-ключ OpenAI. Проверьте правильность ключа в файле .env"
+            elif resp.status_code == 429:
+                err_msg = "Ошибка 429: Превышен лимит запросов или на балансе OpenAI закончились средства ($0.00)"
             return {
                 "success": False,
-                "error": f"Ошибка OpenAI API ({resp.status_code}): {resp.text}"
+                "error": err_msg
             }
 
         res_json = resp.json()
@@ -320,7 +450,17 @@ def analyze_text_message_with_ai(
 
         resp = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
         if resp.status_code != 200:
-            return {"success": False, "students": [], "error": resp.text}
+            err_msg = f"Ошибка OpenAI API ({resp.status_code}): {resp.text[:200]}"
+            if resp.status_code == 403 or "unsupported_country_region_territory" in resp.text:
+                err_msg = (
+                    "Ошибка 403 (Доступ к api.openai.com заблокирован из РФ). "
+                    "Укажите в файле .env шлюз: OPENAI_BASE_URL=https://api.proxyapi.ru/openai/v1 (или https://api.vsegpt.ru/v1)"
+                )
+            elif resp.status_code == 401:
+                err_msg = "Ошибка 401: Неверный API-ключ OpenAI. Проверьте правильность ключа в файле .env"
+            elif resp.status_code == 429:
+                err_msg = "Ошибка 429: Превышен лимит запросов или на балансе OpenAI закончились средства ($0.00)"
+            return {"success": False, "students": [], "error": err_msg}
 
         data = json.loads(resp.json()["choices"][0]["message"]["content"])
         return {

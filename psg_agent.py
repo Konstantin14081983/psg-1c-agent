@@ -45,6 +45,7 @@ def process_application(
     
     # 1. Parse raw inputs (both files and text can be provided together)
     names = []
+    ai_errors = []
     if input_files_list:
         for fpath in input_files_list:
             if not os.path.exists(fpath):
@@ -53,6 +54,8 @@ def process_application(
             parsed = doc_reader.parse_incoming_application(fpath, use_ai=use_ai, openai_api_key=openai_api_key)
             if parsed.get('engine'):
                 engines_used.add(parsed['engine'])
+            if parsed.get('ai_error'):
+                ai_errors.append(f"{os.path.basename(fpath)}: {parsed['ai_error']}")
             if not detected_title and parsed.get('title'):
                 detected_title = parsed.get('title')
             raw_students.extend(parsed.get('students', []))
@@ -60,15 +63,54 @@ def process_application(
 
     if raw_text:
         # Check if raw_text contains student rows or supplementary manager instructions
-        parsed_raw = doc_reader.parse_raw_text_application(raw_text)
-        text_students = parsed_raw.get('students', [])
-        if text_students:
-            if not detected_title and parsed_raw.get('title'):
-                detected_title = parsed_raw.get('title')
-            if raw_students:
-                raw_students = doc_reader.reconcile_student_records(raw_students, text_students)
-            else:
-                raw_students.extend(text_students)
+        # If use_ai=True, attempt deep semantic extraction with OpenAI first
+        text_parsed_by_ai = False
+        if use_ai:
+            try:
+                import ai_vision
+                ai_text_res = ai_vision.analyze_text_message_with_ai(raw_text, api_key=openai_api_key)
+                if ai_text_res.get("success") and ai_text_res.get("students"):
+                    text_parsed_by_ai = True
+                    engines_used.add(ai_text_res.get("engine", "OpenAI (GPT-4o-mini)"))
+                    ai_studs = []
+                    for s in ai_text_res["students"]:
+                        ai_studs.append({
+                            "fio_nom": s.get("fio", ""),
+                            "position": s.get("position", ""),
+                            "birth_date": s.get("birth_date", ""),
+                            "gender": s.get("gender", ""),
+                            "snils": s.get("snils", ""),
+                            "study_dates": s.get("study_dates", ""),
+                            "contacts": s.get("contacts", ""),
+                            "program": s.get("program", "")
+                        })
+                    if raw_students:
+                        raw_students = doc_reader.reconcile_student_records(raw_students, ai_studs)
+                    else:
+                        raw_students.extend(ai_studs)
+                    c_params = ai_text_res.get("common_params", {})
+                    if c_params.get("position") and not manual_overrides.get("position"):
+                        manual_overrides["position"] = c_params["position"]
+                    if c_params.get("program") and not manual_overrides.get("program"):
+                        manual_overrides["program"] = c_params["program"]
+                    if c_params.get("study_dates") and not manual_overrides.get("study_dates"):
+                        manual_overrides["study_dates"] = c_params["study_dates"]
+                else:
+                    if ai_text_res.get("error"):
+                        ai_errors.append(f"Текстовое сообщение: {ai_text_res['error']}")
+            except Exception as e:
+                ai_errors.append(f"Текстовое сообщение: {str(e)}")
+
+        if not text_parsed_by_ai:
+            parsed_raw = doc_reader.parse_raw_text_application(raw_text)
+            text_students = parsed_raw.get('students', [])
+            if text_students:
+                if not detected_title and parsed_raw.get('title'):
+                    detected_title = parsed_raw.get('title')
+                if raw_students:
+                    raw_students = doc_reader.reconcile_student_records(raw_students, text_students)
+                else:
+                    raw_students.extend(text_students)
             if not input_files_list:
                 input_source_name = "Текстовое сообщение"
                 
@@ -300,6 +342,16 @@ def process_application(
                 'message': issue['message']
             })
             
+    # Record any AI errors to audit warnings
+    if ai_errors:
+        for a_err in ai_errors:
+            all_warnings.append({
+                'type': 'Статус ИИ (Vision)',
+                'student': 'Оптическое распознавание ИИ',
+                'field': 'use_ai',
+                'reason': f"⚠️ {a_err}. Выполнен автоматический откат на локальные алгоритмы / Tesseract OCR."
+            })
+
     # Build Excel spreadsheet with turquoise fills and no comments
     wb = excel_builder.create_1c_application_workbook(app_title, grouped_programs)
     wb.save(output_file)
@@ -324,7 +376,8 @@ def process_application(
             "warnings_count": len(all_warnings),
             "warnings": all_warnings,
             "rule_violations": rule_violations,
-            "document_issues": document_issues
+            "document_issues": document_issues,
+            "ai_errors": ai_errors
         }
     }
 

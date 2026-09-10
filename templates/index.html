@@ -1255,6 +1255,8 @@
                 </label>
               </div>
             </div>
+            <!-- AI Diagnostics & Connection Status -->
+            <div id="aiDiagBox" style="display: none; margin-top: 0.65rem; padding: 0.55rem 0.8rem; border-radius: var(--radius-sm); font-size: 0.76rem; line-height: 1.45;"></div>
 
             <input type="hidden" id="openaiApiKeyInput" value="">
           </div>
@@ -1786,7 +1788,40 @@
       this.value = formatted;
     });
 
-    // AI Toggle & LocalStorage persistence
+    // AI Toggle & LocalStorage persistence & Real-time Server Diagnostics
+    async function checkAiConnectionStatus() {
+      const diagBox = document.getElementById('aiDiagBox');
+      if (!diagBox) return;
+
+      diagBox.style.display = 'block';
+      diagBox.style.backgroundColor = 'var(--slate-100)';
+      diagBox.style.color = 'var(--slate-600)';
+      diagBox.style.border = '1px solid var(--slate-200)';
+      diagBox.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;"><span class="spinner" style="width:12px; height:12px; border-width:2px; display:inline-block;"></span> Проверка подключения к OpenAI на сервере...</span>';
+
+      try {
+        const res = await fetch('/api/ai-status');
+        const data = await res.json();
+
+        if (data.ok) {
+          diagBox.style.backgroundColor = 'rgba(16, 185, 129, 0.08)';
+          diagBox.style.color = '#065F46';
+          diagBox.style.border = '1px solid rgba(16, 185, 129, 0.25)';
+          diagBox.innerHTML = `<strong>✓ Связь с OpenAI установлена:</strong> Ключ <code>${data.masked_key}</code> активен. ИИ готов к оптическому распознаванию документов.`;
+        } else {
+          diagBox.style.backgroundColor = 'rgba(245, 158, 11, 0.1)';
+          diagBox.style.color = '#92400E';
+          diagBox.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+          diagBox.innerHTML = `<strong>⚠️ Внимание:</strong> ${data.message}`;
+        }
+      } catch (err) {
+        diagBox.style.backgroundColor = 'rgba(245, 158, 11, 0.1)';
+        diagBox.style.color = '#92400E';
+        diagBox.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+        diagBox.innerHTML = `<strong>⚠️ Ошибка:</strong> Не удалось проверить статус ИИ: ${err.message}`;
+      }
+    }
+
     function initAiMode() {
       const savedAi = localStorage.getItem('psg_use_ai');
       const toggle = document.getElementById('useAiToggle');
@@ -1795,11 +1830,20 @@
         toggle.checked = isAiOn;
       }
       updateAiModeUI(isAiOn);
+      if (isAiOn) {
+        checkAiConnectionStatus();
+      }
     }
 
     function toggleAiMode(checked) {
       localStorage.setItem('psg_use_ai', checked ? 'true' : 'false');
       updateAiModeUI(checked);
+      if (checked) {
+        checkAiConnectionStatus();
+      } else {
+        const diagBox = document.getElementById('aiDiagBox');
+        if (diagBox) diagBox.style.display = 'none';
+      }
     }
 
     function updateAiModeUI(checked) {

@@ -442,6 +442,7 @@ def parse_document_image(
     - AI Vision (OpenAI GPT-4o-mini / GPT-4o) when use_ai=True
     - Local multi-pass Tesseract OCR (with error correction) when use_ai=False or as fallback
     """
+    ai_fallback_error = None
     if use_ai:
         try:
             import ai_vision
@@ -449,9 +450,11 @@ def parse_document_image(
             if ai_res.get("success"):
                 return ai_res
             else:
-                print(f"⚠️ [Vision AI] {ai_res.get('error')}. Откат на локальный Tesseract OCR...")
+                ai_fallback_error = ai_res.get('error')
+                print(f"⚠️ [Vision AI] {ai_fallback_error}. Откат на локальный Tesseract OCR...")
         except Exception as e:
-            print(f"⚠️ [Vision AI Error] {e}. Откат на локальный Tesseract OCR...")
+            ai_fallback_error = str(e)
+            print(f"⚠️ [Vision AI Error] {ai_fallback_error}. Откат на локальный Tesseract OCR...")
 
     ext = os.path.splitext(image_path)[1].lower()
     if ext == '.heic':
@@ -564,4 +567,6 @@ def parse_document_image(
             final_record["fio"] = f"Слушатель (по фото {final_record['type']})"
 
     final_record["engine"] = "Локальный Tesseract OCR"
+    if ai_fallback_error:
+        final_record["ai_error"] = ai_fallback_error
     return final_record
