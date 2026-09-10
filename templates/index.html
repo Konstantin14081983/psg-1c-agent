@@ -1328,7 +1328,7 @@
                 </div>
                 <i data-lucide="chevron-down" class="accordion-arrow"></i>
               </button>
-              <button type="button" class="btn-clear-params" id="clearManualParams" onclick="clearManualParams()" title="Очистить все введенные ручные параметры">
+              <button type="button" class="btn-clear-params" id="clearManualParams" onclick="resetManualParams(event)" title="Очистить все введенные ручные параметры">
                 <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
                 <span>Очистить параметры</span>
               </button>
@@ -1710,15 +1710,49 @@
       }
     }
 
-    function clearManualParams() {
-      document.getElementById('overrideCategory').value = '';
-      document.getElementById('overrideProgram').value = '';
-      document.getElementById('overrideDates').value = '';
-      document.getElementById('overridePosition').value = '';
-      document.getElementById('docDiploma').checked = false;
-      document.getElementById('docPhoto').checked = false;
-      document.getElementById('docCertificate').checked = false;
-      document.querySelectorAll('input[name="progChip"]').forEach(c => c.checked = false);
+    function resetManualParams(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      
+      const cat = document.getElementById('overrideCategory');
+      if (cat) cat.value = '';
+      const prog = document.getElementById('overrideProgram');
+      if (prog) prog.value = '';
+      const dates = document.getElementById('overrideDates');
+      if (dates) dates.value = '';
+      const pos = document.getElementById('overridePosition');
+      if (pos) pos.value = '';
+      
+      const dip = document.getElementById('docDiploma');
+      if (dip) dip.checked = false;
+      const photo = document.getElementById('docPhoto');
+      if (photo) photo.checked = false;
+      const cert = document.getElementById('docCertificate');
+      if (cert) cert.checked = false;
+      
+      document.querySelectorAll('input[name="progChip"]').forEach(c => {
+        c.checked = false;
+      });
+
+      // Visual feedback: icon spin and subtle border flash
+      const btn = document.getElementById('clearManualParams');
+      if (btn) {
+        const icon = btn.querySelector('i');
+        if (icon && typeof gsap !== 'undefined') {
+          gsap.fromTo(icon, { rotate: 0 }, { rotate: -180, duration: 0.35, ease: 'power2.out' });
+        }
+      }
+      
+      const targetInputs = [cat, prog, dates, pos].filter(Boolean);
+      if (typeof gsap !== 'undefined' && targetInputs.length) {
+        gsap.fromTo(targetInputs, 
+          { backgroundColor: 'rgba(229, 30, 37, 0.08)' }, 
+          { backgroundColor: '', duration: 0.45, ease: 'power2.out' }
+        );
+      }
+    }
+
+    function clearManualParams(e) {
+      resetManualParams(e);
     }
 
     function updateSelectedPrograms() {
@@ -2097,6 +2131,11 @@
     document.addEventListener('DOMContentLoaded', () => {
       initAiMode();
       refreshIcons();
+
+      const clearParamsBtn = document.getElementById('clearManualParams');
+      if (clearParamsBtn) {
+        clearParamsBtn.addEventListener('click', resetManualParams);
+      }
 
       // Check prefers-reduced-motion
       if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
