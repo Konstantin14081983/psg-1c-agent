@@ -561,6 +561,15 @@ def test_ai_status_endpoint():
         assert j["code"] == "GEOBLOCK_403"
         assert "OPENAI_BASE_URL" in j["message"]
 
+    # 4. With unexpected exception in check_ai_connection
+    with patch("ai_vision.check_ai_connection", side_effect=RuntimeError("Unexpected test crash")):
+        res = client.get("/api/ai-status")
+        assert res.status_code == 200
+        j = res.json()
+        assert j["ok"] is False
+        assert j["code"] == "SERVER_ERROR"
+        assert "Unexpected test crash" in j["message"]
+
     print("✓ test_ai_status_endpoint passed")
 
 if __name__ == "__main__":

@@ -1801,24 +1801,65 @@
 
       try {
         const res = await fetch('/api/ai-status');
+
+        if (!res.ok) {
+          if (res.status === 404) {
+            diagBox.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+            diagBox.style.color = '#991B1B';
+            diagBox.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+            diagBox.innerHTML = `<strong>⚠️ Служба на сервере еще не обновлена (404):</strong> Эндпоинт <code>/api/ai-status</code> отсутствует.<br>` +
+              `Пожалуйста, выполните в терминале сервера команду обновления:<br>` +
+              `<code style="display:block; margin:6px 0; padding:6px 10px; background:#1E293B; color:#38BDF8; border-radius:4px; font-size:0.75rem; user-select:all;">cd /opt/psg-1c-agent && git pull origin main && systemctl restart psg-agent</code>` +
+              `<button type="button" onclick="checkAiConnectionStatus()" style="margin-top:6px; padding:4px 10px; border-radius:4px; background:#FFFFFF; border:1px solid #CBD5E1; font-size:0.75rem; font-weight:600; cursor:pointer; color:#1E293B;">↻ Повторить проверку</button>`;
+            return;
+          }
+          if (res.status === 502 || res.status === 504) {
+            diagBox.style.backgroundColor = 'rgba(245, 158, 11, 0.1)';
+            diagBox.style.color = '#92400E';
+            diagBox.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+            diagBox.innerHTML = `<strong>⚠️ Служба перезапускается или временно недоступна (HTTP ${res.status}):</strong> Подождите несколько секунд.` +
+              `<br><button type="button" onclick="checkAiConnectionStatus()" style="margin-top:6px; padding:4px 10px; border-radius:4px; background:#FFFFFF; border:1px solid #CBD5E1; font-size:0.75rem; font-weight:600; cursor:pointer; color:#92400E;">↻ Повторить проверку</button>`;
+            return;
+          }
+          let errText = `HTTP ${res.status}`;
+          try {
+            const errData = await res.json();
+            if (errData && errData.detail) errText = errData.detail;
+          } catch(e) {}
+          throw new Error(errText);
+        }
+
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+          const rawText = await res.text();
+          throw new Error(`Сервер вернул ответ не в формате JSON (${res.status}): ${rawText.slice(0, 100)}`);
+        }
+
         const data = await res.json();
 
         if (data.ok) {
           diagBox.style.backgroundColor = 'rgba(16, 185, 129, 0.08)';
           diagBox.style.color = '#065F46';
           diagBox.style.border = '1px solid rgba(16, 185, 129, 0.25)';
-          diagBox.innerHTML = `<strong>✓ Связь с OpenAI установлена:</strong> Ключ <code>${data.masked_key}</code> активен. ИИ готов к оптическому распознаванию документов.`;
+          diagBox.innerHTML = `<strong>✓ Связь с OpenAI установлена:</strong> Ключ <code>${data.masked_key}</code> активен. ИИ готов к оптическому распознаванию документов.` +
+            `<button type="button" onclick="checkAiConnectionStatus()" title="Обновить статус" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#FFFFFF; border:1px solid #CBD5E1; font-size:0.72rem; font-weight:600; cursor:pointer; color:#065F46;">↻</button>`;
         } else {
           diagBox.style.backgroundColor = 'rgba(245, 158, 11, 0.1)';
           diagBox.style.color = '#92400E';
           diagBox.style.border = '1px solid rgba(245, 158, 11, 0.3)';
-          diagBox.innerHTML = `<strong>⚠️ Внимание:</strong> ${data.message}`;
+          diagBox.innerHTML = `<strong>⚠️ Внимание:</strong> ${data.message}` +
+            `<br><button type="button" onclick="checkAiConnectionStatus()" style="margin-top:6px; padding:4px 10px; border-radius:4px; background:#FFFFFF; border:1px solid #CBD5E1; font-size:0.75rem; font-weight:600; cursor:pointer; color:#92400E;">↻ Повторить проверку</button>`;
         }
       } catch (err) {
         diagBox.style.backgroundColor = 'rgba(245, 158, 11, 0.1)';
         diagBox.style.color = '#92400E';
         diagBox.style.border = '1px solid rgba(245, 158, 11, 0.3)';
-        diagBox.innerHTML = `<strong>⚠️ Ошибка:</strong> Не удалось проверить статус ИИ: ${err.message}`;
+        let displayMsg = err.message || '';
+        if (displayMsg.includes('pattern') || err.name === 'SyntaxError') {
+          displayMsg = 'Сервер вернул некорректный ответ (не JSON). Служба на сервере не была обновлена: выполните <code>cd /opt/psg-1c-agent && git pull origin main && systemctl restart psg-agent</code>';
+        }
+        diagBox.innerHTML = `<strong>⚠️ Ошибка проверки ИИ:</strong> ${displayMsg}` +
+          `<br><button type="button" onclick="checkAiConnectionStatus()" style="margin-top:6px; padding:4px 10px; border-radius:4px; background:#FFFFFF; border:1px solid #CBD5E1; font-size:0.75rem; font-weight:600; cursor:pointer; color:#92400E;">↻ Повторить проверку</button>`;
       }
     }
 
@@ -1941,6 +1982,24 @@
         clearTimeout(stepTimer);
         clearTimeout(stepTimer2);
         stepperText.textContent = '4/4. Формирование эталонной таблицы 1С...';
+
+        if (!response.ok) {
+          let errDetail = `Ошибка сервера (HTTP ${response.status})`;
+          try {
+            const errJson = await response.json();
+            if (errJson && errJson.detail) errDetail = errJson.detail;
+          } catch(e) {
+            const errTxt = await response.text();
+            if (errTxt) errDetail += ': ' + errTxt.slice(0, 150);
+          }
+          throw new Error(errDetail);
+        }
+
+        const ct = response.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+          const rawText = await response.text();
+          throw new Error(`Сервер вернул ответ не в формате JSON (${response.status}): ${rawText.slice(0, 100)}`);
+        }
 
         const data = await response.json();
         renderResults(data);

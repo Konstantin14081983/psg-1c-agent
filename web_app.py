@@ -66,9 +66,18 @@ async def index():
 @app.get("/api/ai-status")
 async def get_ai_status():
     """Returns OpenAI connection status, key presence, and diagnostics."""
-    import ai_vision
-    status = ai_vision.check_ai_connection()
-    return JSONResponse(content=status)
+    try:
+        import ai_vision
+        status = ai_vision.check_ai_connection()
+        return JSONResponse(content=status)
+    except Exception as e:
+        return JSONResponse(
+            content={
+                "ok": False,
+                "code": "SERVER_ERROR",
+                "message": f"Ошибка проверки подключения к ИИ: {str(e)}"
+            }
+        )
 
 @app.post("/api/process")
 async def process_api(
