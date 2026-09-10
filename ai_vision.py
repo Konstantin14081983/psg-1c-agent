@@ -118,8 +118,23 @@ def get_api_key(passed_key: Optional[str] = None) -> Optional[str]:
     return None
 
 def get_base_url() -> str:
-    """Returns OpenAI Base URL (supports custom proxies / gateways)."""
-    return os.environ.get("OPENAI_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
+    """Returns OpenAI Base URL (supports custom proxies / gateways from environment or .env)."""
+    env_url = os.environ.get("OPENAI_BASE_URL")
+    if env_url and env_url.strip():
+        return env_url.strip().rstrip("/")
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("OPENAI_BASE_URL="):
+                        val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if val:
+                            return val.rstrip("/")
+        except Exception:
+            pass
+    return DEFAULT_BASE_URL.rstrip("/")
 
 def encode_image_to_base64(image_path: str, max_dimension: int = 2048) -> Tuple[str, str]:
     """
