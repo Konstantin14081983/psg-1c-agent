@@ -200,9 +200,9 @@ def classify_text_part(part: str) -> str:
     ]):
         return 'position'
         
-    # 3. Catalog matching fallback
+    # 3. Catalog matching fallback (only if matched to an actual catalog/canonical program)
     matched = program_matcher.match_programs(part)
-    if matched:
+    if matched and any(m.get('is_canonical') for m in matched):
         return 'program'
         
     return 'unknown'
@@ -239,8 +239,8 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
         dates = m_dates.group(1).strip()
         line = line[:m_dates.start()] + ' , ' + line[m_dates.end():]
         
-    # 2. Extract SNILS (including optional 'СНИЛС:' prefix)
-    m_snils = re.search(r'(?:снилс[:\s]+)?\b(\d{3}[\s\-]\d{3}[\s\-]\d{3}[\s\-]?\d{2}|\d{11})\b', line, re.I)
+    # 2. Extract SNILS (including optional 'СНИЛС:' prefix and OCR letters)
+    m_snils = re.search(r'(?:снилс[:\s#№]+)?\b([0-9ОоoOlI]{3}[\s\-][0-9ОоoOlI]{3}[\s\-][0-9ОоoOlI]{3}[\s\-]?[0-9ОоoOlI]{2}|[0-9ОоoOlI]{11})\b', line, re.I)
     if m_snils:
         snils_cand = m_snils.group(1).strip()
         snils_clean, ok, _ = linguistics.validate_and_format_snils(snils_cand)
@@ -322,13 +322,25 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
     if not fio:
         for i, part in enumerate(parts):
             words = part.split()
-            # 3 words with patronymic at index 2
-            if len(words) == 3 and is_patronymic(words[2]) and all(w[0].isupper() for w in words if w.isalpha()):
+            # 3 words with patronymic at index 2 (case-insensitive, supports typos)
+            if len(words) == 3 and is_patronymic(words[2]):
                 fio = part
                 parts.pop(i)
                 break
-            # 2 words capitalized
-            elif len(words) == 2 and all(w[0].isupper() for w in words if w.isalpha()):
+            # 3 words where 3rd word is a profession: e.g. 'Иванов Иван сварщик'
+            elif len(words) == 3 and classify_text_part(words[2]) == 'position':
+                fio = ' '.join(words[:2])
+                if not position:
+                    position = words[2]
+                parts.pop(i)
+                break
+            # 3 words all alphabetic (Cyrillic or Latin names)
+            elif len(words) == 3 and all(re.match(r'^[а-яА-ЯёЁa-zA-Z\-]+$', w) for w in words):
+                fio = part
+                parts.pop(i)
+                break
+            # 2 words (Surname + First name): e.g. 'Петров Геннадий'
+            elif len(words) == 2 and all(re.match(r'^[а-яА-ЯёЁa-zA-Z\-]+$', w) for w in words):
                 fio = part
                 parts.pop(i)
                 break
@@ -353,6 +365,20 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
                         position = remainder_pos
                     parts.pop(i)
                     break
+                else:
+                    # Check if position starts after 2 or 3 words
+                    if classify_text_part(' '.join(words[2:])) == 'position':
+                        fio = ' '.join(words[:2])
+                        if not position:
+                            position = ' '.join(words[2:])
+                        parts.pop(i)
+                        break
+                    elif len(words) >= 4 and classify_text_part(' '.join(words[3:])) == 'position':
+                        fio = ' '.join(words[:3])
+                        if not position:
+                            position = ' '.join(words[3:])
+                        parts.pop(i)
+                        break
                     
     # Assign remaining parts to position or program
     for part in parts:
@@ -369,14 +395,19 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
     if not fio:
         return None
         
+    # Clean FIO and correct typos (casing, double letters, missing letters)
+    fio_clean, fio_warns = linguistics.correct_fio_typos(fio)
+    fio_final = fio_clean or fio
+        
     # If gender not specified, infer from FIO
-    if not gender and fio:
-        f_words = fio.split()
+    if not gender and fio_final:
+        f_words = fio_final.split()
         if len(f_words) >= 2:
             gender = linguistics.infer_gender(f_words[0], f_words[1], f_words[2] if len(f_words) > 2 else "")
             
     return {
-        "fio_nom": fio,
+        "fio_nom": fio_final,
+        "raw_fio": fio,
         "fio_dat": "",
         "position": position,
         "gender": gender,
@@ -384,7 +415,8 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
         "snils": snils,
         "study_dates": dates,
         "contacts": contacts,
-        "program": program or current_program or ""
+        "program": program or current_program or "",
+        "fio_corrections": fio_warns
     }
 
 def parse_raw_text_application(raw_text: str) -> Dict[str, Any]:
@@ -754,12 +786,16 @@ def extract_supplementary_instructions(text: Optional[str]) -> Dict[str, Any]:
     else:
         words = t.split()
         if 1 <= len(words) <= 4 and not re.search(r'\d', t):
-            res['position'] = t
+            if classify_text_part(t) == 'position':
+                res['position'] = t
             
     # 2. Program extraction
     m_prog = re.search(r'(?:программ[аы]|направлени[ея]|курс)[:\s]+([^\n;]+)', t, re.I)
     if m_prog:
         res['program'] = m_prog.group(1).strip()
+    else:
+        if classify_text_part(t) == 'program':
+            res['program'] = t
         
     # 3. Dates extraction
     m_dates = re.search(r'(\d{2}\.\d{2}\.\d{4}\s*[-—–]\s*\d{2}\.\d{2}\.\d{4})', t)

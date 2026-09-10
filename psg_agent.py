@@ -130,7 +130,7 @@ def process_application(
     
     # 2. Process each student
     for s_idx, raw_s in enumerate(raw_students, start=1):
-        fio_nom_raw = raw_s.get('fio_nom', '')
+        fio_nom_raw = raw_s.get('raw_fio') or raw_s.get('fio_nom', '')
         fio_dat_raw = raw_s.get('fio_dat', '')
         gender_raw = raw_s.get('gender', '')
         birth_raw = raw_s.get('birth_date', '')
@@ -142,6 +142,14 @@ def process_application(
         
         # Linguistic & FIO processing (with anomaly and patronymic typo check)
         fio_res = linguistics.process_person_fio(fio_nom_raw, fio_dat_raw, gender_raw)
+        if raw_s.get('fio_corrections'):
+            for c in raw_s['fio_corrections']:
+                if c not in fio_res.get('corrections', []):
+                    fio_res.setdefault('corrections', []).append(c)
+            if 'nom_fio' not in fio_res.setdefault('yellow_columns', []):
+                fio_res['yellow_columns'].append('nom_fio')
+            fio_res['has_yellow_flag'] = True
+            fio_res['nom_warning'] = "; ".join(fio_res['corrections'])
         
         # SNILS validation
         snils_formatted, snils_valid, snils_warn = linguistics.validate_and_format_snils(snils_raw)

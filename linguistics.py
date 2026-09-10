@@ -100,6 +100,13 @@ def validate_and_format_snils(snils_input: Optional[str]) -> Tuple[str, bool, Op
         return "", False, "СНИЛС отсутствует"
     
     cleaned = clean_text(snils_input)
+    # Strip leading markers like 'СНИЛС:', 'страховой номер', '№'
+    cleaned = re.sub(r'^(?:снилс|snils|страховой|номер|№)[:\s#№]*', '', cleaned, flags=re.I).strip()
+    
+    # OCR homoglyph fix for digits: O/o/О/о -> 0, l/I/i -> 1
+    for ch, d in [("O", "0"), ("o", "0"), ("О", "0"), ("о", "0"), ("l", "1"), ("I", "1"), ("i", "1")]:
+        cleaned = cleaned.replace(ch, d)
+        
     digits = re.sub(r'\D', '', cleaned)
     
     if len(digits) != 11:
@@ -145,6 +152,8 @@ def normalize_date(date_input: Optional[str]) -> Tuple[str, bool, Optional[str]]
     
     cleaned = clean_text(date_input)
     cleaned, _ = clean_homoglyphs(cleaned)
+    # Strip leading markers like 'д.р.:', 'дата рождения:', 'г.р.'
+    cleaned = re.sub(r'^(?:(?:д\.?р\.?|рожд\.?|дата(?:\s+рождения)?|г\.?р\.?)[:\s]+)', '', cleaned, flags=re.I).strip()
     
     # 1. Verbal Russian format: e.g. '22 АВГУСТА 2005 ГОДА Г. НОВОСИБИРСК'
     m_verbal = re.search(r'\b(\d{1,2})\s+([а-яА-ЯёЁ]{3,12})\s+(\d{4})(?:\s*г(?:ода|\.)?)?\b', cleaned)
@@ -163,7 +172,7 @@ def normalize_date(date_input: Optional[str]) -> Tuple[str, bool, Optional[str]]
             formatted = f"{day:02d}.{month_num:02d}.{year}"
             return formatted, True, None
 
-    # 2. Numeric format: DD.MM.YYYY or DD/MM/YYYY or DD-MM-YYYY
+    # 2. Numeric format: DD.MM.YYYY or DD/MM/YYYY or DD-MM-YYYY or single-digit D.M.YYYY
     m = re.search(r'\b(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})\b', cleaned)
     if m:
         day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
@@ -336,6 +345,160 @@ def decline_patronymic_dative(patronymic: str, gender: str) -> Tuple[str, bool]:
         
     return p, False
 
+LEGITIMATE_DOUBLE_CONSONANTS = (
+    "геннад", "кирилл", "филипп", "илларион", "савв", "иннокент",
+    "анн", "инн", "алл", "римм", "эмм", "жанн", "белл", "стелл", "нонн", "сусанн",
+    "аполлон", "диграмм", "программ", "масс", "росс"
+)
+
+PATRONYMIC_TYPO_FIXES = {
+    r"алексадрович\b": "Александрович",
+    r"алексадровна\b": "Александровна",
+    r"вячеславоич\b": "Вячеславович",
+    r"станиславоич\b": "Станиславович",
+    r"ярославоич\b": "Ярославович",
+    r"ростиславоич\b": "Ростиславович",
+    r"святославоич\b": "Святославович",
+    r"владиславоич\b": "Владиславович",
+    r"сергевич\b": "Сергеевич",
+    r"дмитривич\b": "Дмитриевич",
+    r"андревич\b": "Андреевич",
+    r"алексевич\b": "Алексеевич",
+    r"николаич\b": "Николаевич",
+    r"михалович\b": "Михайлович",
+    r"василевич\b": "Васильевич",
+    r"анатолевич\b": "Анатольевич",
+    r"владимрович\b": "Владимирович",
+    r"владмирович\b": "Владимирович",
+    r"контантинович\b": "Константинович",
+    r"евгеневич\b": "Евгеньевич",
+    r"валеревич\b": "Валерьевич",
+    r"юревич\b": "Юрьевич",
+    r"сергевна\b": "Сергеевна",
+    r"дмитривна\b": "Дмитриевна",
+    r"андревна\b": "Андреевна",
+    r"алексевна\b": "Алексеевна",
+    r"михаловна\b": "Михайловна",
+    r"василевна\b": "Васильевна",
+    r"анатолевна\b": "Анатольевна",
+    r"владимровна\b": "Владимировна",
+}
+
+NAME_TYPO_FIXES = {
+    r"\bалексадр\b": "Александр",
+    r"\bвладмир\b": "Владимир",
+    r"\bдмирий\b": "Дмитрий",
+    r"\bконтантин\b": "Константин",
+    r"\bвячелав\b": "Вячеслав",
+    r"\bстанилав\b": "Станислав",
+    r"\bгенадий\b": "Геннадий",
+    r"\bкирил\b": "Кирилл",
+    r"\bфилип\b": "Филипп",
+    r"\bмихаилл\b": "Михаил",
+}
+
+PATRONYMIC_ENDINGS = ("ович", "евич", "ич", "ыч", "овна", "евна", "ична", "инична", "ычна", "оглы", "угли", "улы", "кызы", "гызы")
+
+def clean_fio_word(w: str, word_idx: int = 0, total_words: int = 3) -> Tuple[str, List[str]]:
+    """
+    Cleans and corrects a single word of FIO:
+    - Removes garbage characters
+    - Fixes casing (Title Case)
+    - Deduplicates accidental double vowels & consonants
+    - Restores missing letters in standard names/patronymics
+    """
+    warnings = []
+    orig = w
+    
+    # Strip garbage punctuation, quotes, numbers
+    w_clean = re.sub(r'[^а-яА-ЯёЁa-zA-Z\-]', '', w)
+    if not w_clean:
+        return "", []
+        
+    w_clean, _ = clean_homoglyphs(w_clean)
+    w_lower = w_clean.lower()
+    is_pat = any(w_lower.endswith(end) for end in PATRONYMIC_ENDINGS)
+    is_name = (word_idx == 1 and total_words >= 2)
+    
+    # 1. Check known missing letter dictionaries
+    corrected_from_dict = False
+    for pattern, repl in PATRONYMIC_TYPO_FIXES.items():
+        if re.search(pattern, w_lower):
+            w_clean = repl
+            warnings.append(f"Восстановлена пропущенная буква в отчестве: '{orig}' -> '{repl}'")
+            corrected_from_dict = True
+            break
+            
+    if not corrected_from_dict:
+        for pattern, repl in NAME_TYPO_FIXES.items():
+            if re.search(pattern, w_lower):
+                w_clean = repl
+                warnings.append(f"Восстановлена пропущенная буква в имени: '{orig}' -> '{repl}'")
+                corrected_from_dict = True
+                break
+                
+    if not corrected_from_dict:
+        # 2. Tripled letter deduplication: e.g. Ивааанович -> Иванович
+        w_dedup = re.sub(r'([а-яА-ЯёЁa-zA-Z])\1{2,}', r'\1', w_clean)
+        
+        # 3. Accidental doubled vowels: protect "еевич" / "еевна", deduplicate other double vowels
+        w_vowels = re.sub(r'([аиоуыэюя])\1+', r'\1', w_dedup, flags=re.IGNORECASE)
+        w_vowels = re.sub(r'е{3,}(вич|вна)', r'ее\1', w_vowels, flags=re.IGNORECASE)
+        w_vowels = re.sub(r'е{2,}(?!вич|вна)', r'е', w_vowels, flags=re.IGNORECASE)
+        
+        # 4. Accidental doubled consonants
+        # Deduplicate initial doubled consonants (e.g. Ппетров -> Петров)
+        w_cons = re.sub(r'^([бвгджзклмнпрстфхцчшщ])\1', r'\1', w_vowels, flags=re.IGNORECASE)
+        # For patronymics and first names, deduplicate non-legitimate double consonants
+        if is_pat or is_name:
+            is_legit = any(root in w_cons.lower() for root in LEGITIMATE_DOUBLE_CONSONANTS)
+            if not is_legit:
+                w_cons = re.sub(r'([бвгджзклмнпрстфхцчшщ])\1+', r'\1', w_cons, flags=re.IGNORECASE)
+            
+        if w_cons.lower() != w_clean.lower():
+            warnings.append(f"Устранено ошибочное задвоение букв: '{orig}' -> '{w_cons}'")
+            
+        w_clean = w_cons
+
+    # Proper Title Casing (handles hyphenated names like Мамин-Сибиряк)
+    w_title = "-".join([part.capitalize() for part in w_clean.split('-')])
+    
+    if orig != w_title and not warnings:
+        if orig.islower():
+            warnings.append(f"Исправлен регистр: '{orig}' -> '{w_title}'")
+        elif orig != w_title:
+            warnings.append(f"Скорректирован регистр: '{orig}' -> '{w_title}'")
+            
+    return w_title, warnings
+
+def correct_fio_typos(raw_fio: str) -> Tuple[str, List[str]]:
+    """
+    Normalizes and cleans full FIO string:
+    - Strips leading numbering (1., 1), №), bullets, quotes
+    - Corrects each word (casing, double letters, missing letters)
+    - Returns (clean_fio, warnings)
+    """
+    if not raw_fio:
+        return "", []
+        
+    warnings = []
+    t = clean_text(raw_fio)
+    
+    # Strip leading list markers: '1.', '1)', '1 -', '№1'
+    t_clean = re.sub(r'^\s*(?:\d+[\.\)\-:]|№\s*\d+|\([0-9]+\)|\*|\-)\s*', '', t).strip()
+    # Strip quotes and brackets
+    t_clean = re.sub(r'^[\"\'«\(\[\{]+|[\"\'»\)\]\}]+$', '', t_clean).strip()
+    
+    words = t_clean.split()
+    clean_words = []
+    for idx, w in enumerate(words):
+        cw, w_warns = clean_fio_word(w, word_idx=idx, total_words=len(words))
+        if cw:
+            clean_words.append(cw)
+            warnings.extend(w_warns)
+            
+    return " ".join(clean_words), warnings
+
 def check_fio_anomalies(surname: str, firstname: str, patronymic: str) -> List[str]:
     warnings = []
     
@@ -358,8 +521,15 @@ def process_person_fio(
     raw_dative: Optional[str] = None,
     explicit_gender: Optional[str] = None
 ) -> Dict[str, Any]:
-    nom_clean, nom_homoglyphs = clean_homoglyphs(clean_text(raw_nominative))
-    dat_clean, dat_homoglyphs = clean_homoglyphs(clean_text(raw_dative)) if raw_dative else ("", False)
+    clean_nom, nom_corrections = correct_fio_typos(raw_nominative)
+    nom_clean, nom_homoglyphs = clean_homoglyphs(clean_nom)
+    
+    if raw_dative:
+        clean_dat, dat_corrections = correct_fio_typos(raw_dative)
+        dat_clean, dat_homoglyphs = clean_homoglyphs(clean_dat)
+    else:
+        dat_clean, dat_homoglyphs = "", False
+        dat_corrections = []
     
     nom_parts = [p.capitalize() for p in nom_clean.split()]
     
@@ -384,6 +554,7 @@ def process_person_fio(
     gender = explicit_gender.upper() if explicit_gender in ('М', 'Ж') else infer_gender(surname, firstname, patronymic)
     
     anomalies = check_fio_anomalies(surname, firstname, patronymic)
+    anomalies.extend(nom_corrections)
     
     s_dat, s_cert = decline_surname_dative(surname, gender)
     fn_dat, fn_cert = decline_firstname_dative(firstname, gender)
@@ -453,6 +624,7 @@ def process_person_fio(
         "nom_warning": nom_warning,
         "dat_warning": dat_warning,
         "patronymic_warning": patronymic_warning,
+        "corrections": nom_corrections,
         "has_yellow_flag": has_yellow_flag,
         "yellow_columns": yellow_columns
     }

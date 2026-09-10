@@ -41,22 +41,40 @@ POSITION_ABBREVIATIONS = [
 
 # Position typo corrections
 POSITION_TYPOS = [
-    (r'\bмошинист\b', 'Машинист'),
+    (r'\bелектрогазосварщик\b', 'электрогазосварщик'),
+    (r'\bелектрик\b', 'электрик'),
+    (r'\bелектромонтер\b', 'электромонтёр'),
+    (r'\bсваарщик\b', 'сварщик'),
+    (r'\bсварщикк\b', 'сварщик'),
+    (r'\bсваршик\b', 'сварщик'),
+    (r'\bмошинист\b', 'машинист'),
+    (r'\bмашинисст\b', 'машинист'),
     (r'\bкранна\b', 'крана'),
     (r'\bавтомобильногого\b', 'автомобильного'),
     (r'\bавтомобилного\b', 'автомобильного'),
     (r'\bслесарьь\b', 'слесарь'),
-    (r'\bсварщикк\b', 'сварщик'),
+    (r'\bслесар\b', 'слесарь'),
+    (r'\bслесаррь\b', 'слесарь'),
     (r'\bстропалщик\b', 'стропальщик'),
+    (r'\bстропальшик\b', 'стропальщик'),
+    (r'\bстропаалщик\b', 'стропальщик'),
     (r'\bмантажник\b', 'монтажник'),
     (r'\bмонтжник\b', 'монтажник'),
+    (r'\bмонтажик\b', 'монтажник'),
+    (r'\bмонтажнник\b', 'монтажник'),
+    (r'\bводител\b', 'водитель'),
+    (r'\bводиитель\b', 'водитель'),
+    (r'\bинжинер\b', 'инженер'),
+    (r'\bинжинерр\b', 'инженер'),
+    (r'\bподсобный рабочии\b', 'подсобный рабочий'),
 ]
 
 def normalize_position(position_raw: Optional[str]) -> Tuple[str, Optional[str], bool]:
     """
     Normalizes a job position:
+    - Strips garbage prefixes (должность:, профессия:) and quotes
     - Capitalizes first letter
-    - Corrects common typos (e.g. 'мошинист кранна', 'автомобильногого')
+    - Corrects common typos and letter doubling (e.g. 'електрогазосварщик', 'сваарщик')
     - Expands standard industry abbreviations (м/к, пом., э/г, и т.д.)
     Returns (cleaned_position, warning_message, had_issues).
     """
@@ -64,6 +82,12 @@ def normalize_position(position_raw: Optional[str]) -> Tuple[str, Optional[str],
         return "", "Должность не указана", True
         
     text = position_raw.strip()
+    # Strip garbage prefixes
+    text = re.sub(r'^(?:должность|профессия|долж\.|проф\.)[:\s]*', '', text, flags=re.IGNORECASE).strip()
+    # Strip quotes and brackets
+    text = re.sub(r'^[\"\'«\(\[\{]+|[\"\'»\)\]\}]+$', '', text).strip()
+    # Strip trailing punctuation
+    text = text.rstrip(' .,;!?-')
     text = re.sub(r'\s+', ' ', text)
     
     had_corrections = False
@@ -81,6 +105,12 @@ def normalize_position(position_raw: Optional[str]) -> Tuple[str, Optional[str],
             text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
             had_corrections = True
             
+    # Deduplicate tripled letters
+    text_dedup = re.sub(r'([а-яА-ЯёЁa-zA-Z])\1{2,}', r'\1', text)
+    if text_dedup != text:
+        text = text_dedup
+        had_typos = True
+
     # Capitalize the first letter properly
     if text:
         text = text[0].upper() + text[1:]

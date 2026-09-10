@@ -432,6 +432,75 @@ def test_ai_fallback_to_tesseract_on_api_error():
         assert "Абрамов" in stud["fio_nom"]
         print("✓ test_ai_fallback_to_tesseract_on_api_error passed")
 
+def test_text_input_nlp_autocorrection_and_audit():
+    """
+    Test auto-correction of typos in FIO (case, double letters, missing letters),
+    positions, birth dates, and SNILS from raw text messages, and verification
+    that all corrections are tracked in audit warnings and yellow flags.
+    """
+    # 1. Test casing and numbering removal: '1. Петров Геннадий иванович'
+    res1 = client.post("/api/process", data={
+        "raw_text": "1. Петров Геннадий иванович",
+        "program": "Охрана труда",
+        "study_dates": "01.09.2026 - 15.09.2026"
+    })
+    assert res1.status_code == 200
+    jdata1 = res1.json()
+    assert jdata1["success"] is True
+    students1 = list(jdata1["grouped_data"].values())[0]["students"]
+    assert len(students1) == 1
+    s1 = students1[0]
+    assert s1["fio_nom"] == "Петров Геннадий Иванович"
+    assert s1["fio_dat"] == "Петрову Геннадию Ивановичу"
+    assert bool(s1["yellow_flags"]["nom_fio"]) is True
+    warnings1 = jdata1["audit"]["warnings"]
+    assert any("Исправлен регистр" in w.get("reason", "") and "Иванович" in w.get("reason", "") for w in warnings1)
+    print("✓ test_text_input_nlp_autocorrection_and_audit: casing & numbering passed")
+
+    # 2. Test double letters in FIO & position, 2-digit year date, unhyphenated SNILS
+    text2 = "Пеетров Сергей Иваанович, сваарщик, 15.07.91, 11223344595"
+    res2 = client.post("/api/process", data={
+        "raw_text": text2,
+        "program": "Охрана труда",
+        "study_dates": "01.09.2026 - 15.09.2026"
+    })
+    assert res2.status_code == 200
+    jdata2 = res2.json()
+    assert jdata2["success"] is True
+    students2 = list(jdata2["grouped_data"].values())[0]["students"]
+    assert len(students2) == 1
+    s2 = students2[0]
+    assert s2["fio_nom"] == "Петров Сергей Иванович"
+    assert s2["position"] == "Сварщик"
+    assert s2["birth_date"] == "15.07.1991"
+    assert s2["snils"] == "112-233-445 95"
+    assert bool(s2["yellow_flags"]["nom_fio"]) is True
+    assert bool(s2["yellow_flags"]["position"]) is True
+    warnings2 = jdata2["audit"]["warnings"]
+    assert any("задвоение букв" in w.get("reason", "") for w in warnings2)
+    assert any("опечатки в должности" in w.get("reason", "") and "Сварщик" in w.get("reason", "") for w in warnings2)
+    print("✓ test_text_input_nlp_autocorrection_and_audit: double letters & formatting passed")
+
+    # 3. Test missing letters in patronymics
+    text3 = "Сидоров Александр Вячеславоич"
+    res3 = client.post("/api/process", data={
+        "raw_text": text3,
+        "program": "Охрана труда",
+        "study_dates": "01.09.2026 - 15.09.2026"
+    })
+    assert res3.status_code == 200
+    jdata3 = res3.json()
+    assert jdata3["success"] is True
+    students3 = list(jdata3["grouped_data"].values())[0]["students"]
+    assert len(students3) == 1
+    s3 = students3[0]
+    assert s3["fio_nom"] == "Сидоров Александр Вячеславович"
+    assert s3["fio_dat"] == "Сидорову Александру Вячеславовичу"
+    assert bool(s3["yellow_flags"]["nom_fio"]) is True
+    warnings3 = jdata3["audit"]["warnings"]
+    assert any("Вячеславоич" in w.get("reason", "") and "Вячеславович" in w.get("reason", "") for w in warnings3)
+    print("✓ test_text_input_nlp_autocorrection_and_audit: missing letters passed")
+
 if __name__ == "__main__":
     test_homepage()
     test_errors_sample_file()
@@ -446,7 +515,9 @@ if __name__ == "__main__":
     test_file_and_text_reconciliation_no_duplicates()
     test_ai_toggle_and_mocked_execution()
     test_ai_fallback_to_tesseract_on_api_error()
+    test_text_input_nlp_autocorrection_and_audit()
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")
+
 
 
 
