@@ -501,6 +501,28 @@ def test_text_input_nlp_autocorrection_and_audit():
     assert any("Вячеславоич" in w.get("reason", "") and "Вячеславович" in w.get("reason", "") for w in warnings3)
     print("✓ test_text_input_nlp_autocorrection_and_audit: missing letters passed")
 
+    # 4. Test date with 'г' and patronymic with tail garbage: '22.12.1978г Хабибуллин Рустем Фанильевичывсвы'
+    text4 = "22.12.1978г Хабибуллин Рустем Фанильевичывсвы"
+    res4 = client.post("/api/process", data={
+        "raw_text": text4,
+        "program": "Охрана труда",
+        "study_dates": "01.09.2026 - 15.09.2026"
+    })
+    assert res4.status_code == 200
+    jdata4 = res4.json()
+    assert jdata4["success"] is True
+    students4 = list(jdata4["grouped_data"].values())[0]["students"]
+    assert len(students4) == 1
+    s4 = students4[0]
+    assert s4["fio_nom"] == "Хабибуллин Рустем Фанильевич"
+    assert s4["fio_dat"] == "Хабибуллину Рустему Фанильевичу"
+    assert s4["birth_date"] == "22.12.1978"
+    assert bool(s4["yellow_flags"]["nom_fio"]) is True
+    warnings4 = jdata4["audit"]["warnings"]
+    assert not any("Не удалось распознать формат даты" in w.get("reason", "") for w in warnings4)
+    assert any("Фанильевичывсвы" in w.get("reason", "") for w in warnings4)
+    print("✓ test_text_input_nlp_autocorrection_and_audit: date with 'г' and tail garbage passed")
+
 if __name__ == "__main__":
     test_homepage()
     test_errors_sample_file()

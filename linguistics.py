@@ -154,9 +154,11 @@ def normalize_date(date_input: Optional[str]) -> Tuple[str, bool, Optional[str]]
     cleaned, _ = clean_homoglyphs(cleaned)
     # Strip leading markers like 'д.р.:', 'дата рождения:', 'г.р.'
     cleaned = re.sub(r'^(?:(?:д\.?р\.?|рожд\.?|дата(?:\s+рождения)?|г\.?р\.?)[:\s]+)', '', cleaned, flags=re.I).strip()
+    # Strip trailing year markers like 'г.', 'г', 'года'
+    cleaned = re.sub(r'(?<=\d)\s*г(?:ода|\.)?$', '', cleaned, flags=re.I).strip()
     
     # 1. Verbal Russian format: e.g. '22 АВГУСТА 2005 ГОДА Г. НОВОСИБИРСК'
-    m_verbal = re.search(r'\b(\d{1,2})\s+([а-яА-ЯёЁ]{3,12})\s+(\d{4})(?:\s*г(?:ода|\.)?)?\b', cleaned)
+    m_verbal = re.search(r'\b(\d{1,2})\s+([а-яА-ЯёЁ]{3,12})\s+(\d{4})(?:\s*г(?:ода|\.)?)?\b', cleaned, flags=re.I)
     if m_verbal:
         day = int(m_verbal.group(1))
         month_str = m_verbal.group(2).lower()
@@ -172,15 +174,18 @@ def normalize_date(date_input: Optional[str]) -> Tuple[str, bool, Optional[str]]
             formatted = f"{day:02d}.{month_num:02d}.{year}"
             return formatted, True, None
 
-    # 2. Numeric format: DD.MM.YYYY or DD/MM/YYYY or DD-MM-YYYY or single-digit D.M.YYYY
-    m = re.search(r'\b(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})\b', cleaned)
+    # 2. Numeric format: DD.MM.YYYY or DD/MM/YYYY or DD-MM-YYYY or single-digit D.M.YYYY (supports trailing 'г', 'г.', 'года')
+    m = re.search(r'\b(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})(?:\s*г(?:ода|\.)?)?(?!\d)', cleaned, flags=re.I)
     if m:
         day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
         if year < 100:
             year += 1900 if year > 30 else 2000
         if 1 <= day <= 31 and 1 <= month <= 12 and 1930 <= year <= 2035:
             formatted = f"{day:02d}.{month:02d}.{year}"
-            return formatted, True, None
+            warn = None
+            if int(m.group(3)) < 100:
+                warn = f"2-значный год преобразован в {year}"
+            return formatted, True, warn
         else:
             return cleaned, False, f"Недопустимые значения даты: {cleaned}"
     
@@ -420,6 +425,17 @@ def clean_fio_word(w: str, word_idx: int = 0, total_words: int = 3) -> Tuple[str
     is_pat = any(w_lower.endswith(end) for end in PATRONYMIC_ENDINGS)
     is_name = (word_idx == 1 and total_words >= 2)
     
+    # Strip stray tail garbage after patronymics (e.g. 'Фанильевичывсвы' -> 'Фанильевич', 'Ивановичв' -> 'Иванович')
+    m_pat_tail = re.match(r'^([а-яА-ЯёЁ]{3,}(?:ович|евич|овна|евна|ична|ычна))([а-яА-ЯёЁ]{1,8})$', w_clean, flags=re.I)
+    if m_pat_tail:
+        stem_pat = m_pat_tail.group(1)
+        tail = m_pat_tail.group(2)
+        if tail.lower() not in ('енко', 'ев', 'ева', 'ский', 'ская'):
+            w_clean = stem_pat
+            warnings.append(f"Удален мусор в конце отчества: '{orig}' -> '{w_clean}'")
+            w_lower = w_clean.lower()
+            is_pat = True
+            
     # 1. Check known missing letter dictionaries
     corrected_from_dict = False
     for pattern, repl in PATRONYMIC_TYPO_FIXES.items():

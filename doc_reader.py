@@ -178,9 +178,13 @@ PATRONYMIC_ENDINGS = (
 )
 
 def is_patronymic(word: str) -> bool:
-    """Checks if word has typical Russian or Central Asian patronymic ending."""
+    """Checks if word has typical Russian or Central Asian patronymic ending (or typo/tail garbage)."""
     w = word.strip().lower()
-    return any(w.endswith(end) for end in PATRONYMIC_ENDINGS)
+    if any(w.endswith(end) for end in PATRONYMIC_ENDINGS):
+        return True
+    if re.search(r'[а-яё]{3,}(?:ович|евич|овна|евна|ична|ычна)[а-яё]{1,8}$', w):
+        return True
+    return False
 
 def classify_text_part(part: str) -> str:
     """Classifies an isolated phrase as 'program', 'position', or 'unknown'."""
@@ -216,8 +220,8 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
     if not line:
         return None
         
-    # Strip leading list markers: '1.', '1)', '1 -', '*', '-'
-    line = re.sub(r'^\s*(?:\d+[\.\)\-:]|\([0-9]+\)|\*|\-)\s*', '', line).strip()
+    # Strip leading list markers: '1.', '1)', '1 -', '*', '-' (ensure not stripping dates like 22.12.1978 or 1.5.1990)
+    line = re.sub(r'^\s*(?:\d{1,4}(?:[\)\:]|\s*[-–—]|\.(?!\d))|\([0-9]+\)|\*|[-–—])\s*', '', line).strip()
     
     # Check if line is purely program header / general text
     line_lower = line.lower()
@@ -268,8 +272,8 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
         birth_date = d_norm if ok else m_vdate.group(1)
         line = line[:m_vdate.start()] + ' , ' + line[m_vdate.end():]
     else:
-        # 4b. Numeric date
-        m_ndate = re.search(r'(?:(?:д\.?р\.?|рожд\.?|дата\s+рождения)[:\s]+)?\b(\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4})\b', line, re.I)
+        # 4b. Numeric date (supports trailing 'г', 'г.', 'года')
+        m_ndate = re.search(r'(?:(?:д\.?р\.?|рожд\.?|дата\s+рождения|г\.?р\.?)[:\s]+)?\b(\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}(?:\s*г(?:ода|\.)?)?)(?!\d)', line, re.I)
         if m_ndate:
             d_norm, ok, _ = linguistics.normalize_date(m_ndate.group(1))
             birth_date = d_norm if ok else m_ndate.group(1)
