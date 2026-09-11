@@ -170,7 +170,14 @@ def extract_xlsx_data(xlsx_path: str) -> Dict[str, Any]:
     
     for r in range(1, ws.max_row + 1):
         row_vals = [ws.cell(r, c).value for c in range(1, ws.max_column + 1)]
-        str_vals = [' '.join(str(v).split()) if v is not None else '' for v in row_vals]
+        str_vals = []
+        for v in row_vals:
+            if v is None:
+                str_vals.append('')
+            elif isinstance(v, (datetime.datetime, datetime.date)):
+                str_vals.append(v.strftime('%d.%m.%Y'))
+            else:
+                str_vals.append(' '.join(str(v).split()))
         if any(str_vals):
             rows.append(str_vals)
             first_val = str_vals[0] if str_vals else ''
@@ -419,8 +426,8 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
         birth_date = d_norm if ok else m_vdate.group(1)
         line = line[:m_vdate.start()] + ' , ' + line[m_vdate.end():]
     else:
-        # 4b. Numeric date (supports trailing 'г', 'г.', 'года')
-        m_ndate = re.search(r'(?:(?:д\.?р\.?|рожд\.?|дата\s+рождения|г\.?р\.?)[:\s]+)?\b(\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}(?:\s*г(?:ода|\.)?)?)(?!\d)', line, re.I)
+        # 4b. Numeric date (supports OCR spaces and trailing 'г', 'г.', 'года')
+        m_ndate = re.search(r'(?:(?:д\.?р\.?|рожд\.?|дата\s+рождения|г\.?р\.?)[:\s]+)?\b(\d{1,2}\s*[./\-]\s*\d{1,2}\s*[./\-]\s*(?:\d[\d\s]{0,3}\d|\d{2,4})(?:\s*г(?:ода|\.)?)?)\b', line, re.I)
         if m_ndate:
             d_norm, ok, _ = linguistics.normalize_date(m_ndate.group(1))
             birth_date = d_norm if ok else m_ndate.group(1)
@@ -468,10 +475,15 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
             continue
         if re.match(r'^(?:снилс|пол|тел|email|почта|д\.?р\.?|рожд\.?)[:\s]*$', p_clean, re.I):
             continue
+        # Rejoin split patronymics in parts so word splitting recognizes 3 words (e.g. 'Александрови Ч' -> 'Александрович')
+        p_clean = re.sub(r'\b([а-яА-ЯёЁ]{3,}(?:ови|еви|ини|ыч|и))\s+([чЧ])\b', r'\1\2', p_clean)
+        p_clean = re.sub(r'\b([а-яА-ЯёЁ]{3,}(?:овн|евн|ичн))\s+([аА])\b', r'\1\2', p_clean)
         parts.append(p_clean)
         
     if not fio:
         for i, part in enumerate(parts):
+            if classify_text_part(part) == 'program':
+                continue
             words = part.split()
             # 3 words with patronymic at index 2 (case-insensitive, supports typos)
             if len(words) == 3 and is_patronymic(words[2]):
@@ -909,11 +921,16 @@ def parse_incoming_application(
         header_idx = -1
         col_map = {}
         for r_idx, row in enumerate(tbl):
+            non_empty_cells = [c for c in row if str(c).strip()]
+            if len(non_empty_cells) < 2:
+                continue
             row_str = ' '.join(str(c) for c in row).lower()
             if any(kw in row_str for kw in ['фио', 'ф.и.о', 'фамили', 'слушател', 'сотрудник', 'работник', 'обучающ']) or ('снилс' in row_str and ('должност' in row_str or 'рожд' in row_str or 'професси' in row_str)):
-                header_idx = r_idx
-                col_map = identify_columns(row)
-                break
+                cand_map = identify_columns(row)
+                if 'fio_nom' in cand_map and (len(cand_map) >= 2 or any(k in row_str for k in ['фио', 'фамил'])):
+                    header_idx = r_idx
+                    col_map = cand_map
+                    break
                 
         if header_idx == -1:
             continue

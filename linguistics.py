@@ -155,7 +155,19 @@ def normalize_date(date_input: Optional[str]) -> Tuple[str, bool, Optional[str]]
     # Strip leading markers like 'д.р.:', 'дата рождения:', 'г.р.'
     cleaned = re.sub(r'^(?:(?:д\.?р\.?|рожд\.?|дата(?:\s+рождения)?|г\.?р\.?)[:\s]+)', '', cleaned, flags=re.I).strip()
     # Strip trailing year markers like 'г.', 'г', 'года'
-    cleaned = re.sub(r'(?<=\d)\s*г(?:ода|\.)?$', '', cleaned, flags=re.I).strip()
+    cleaned = re.sub(r'\s*г(?:ода|\.)?$', '', cleaned, flags=re.I).strip()
+    
+    # 0. Pre-clean OCR spaces inside numeric dates:
+    # 0a. Spaces around separators: e.g. '26 . 07 . 1982' -> '26.07.1982'
+    cleaned = re.sub(r'(\d)\s*([./\-])\s*(\d)', r'\1\2\3', cleaned)
+    cleaned = re.sub(r'(\d)\s*([./\-])\s*(\d)', r'\1\2\3', cleaned)
+    # 0b. Spaces inside year: e.g. '26.07.198 2', '26.07.19 82', '26.07.1 9 8 2'
+    for _ in range(3):
+        cleaned = re.sub(r'(\d{1,2}[./\-]\d{1,2}[./\-]\d{1,3})\s+(\d{1,3})', r'\1\2', cleaned)
+    # 0c. Spaces inside day: e.g. '2 6.07.1982'
+    cleaned = re.sub(r'\b(\d)\s+(\d[./\-])', r'\1\2', cleaned)
+    # 0d. Spaces inside month: e.g. '26.0 7.1982'
+    cleaned = re.sub(r'([./\-])(\d)\s+(\d[./\-])', r'\1\2\3', cleaned)
     
     # 1. Verbal Russian format: e.g. '22 АВГУСТА 2005 ГОДА Г. НОВОСИБИРСК'
     m_verbal = re.search(r'\b(\d{1,2})\s+([а-яА-ЯёЁ]{3,12})\s+(\d{4})(?:\s*г(?:ода|\.)?)?\b', cleaned, flags=re.I)
@@ -172,6 +184,14 @@ def normalize_date(date_input: Optional[str]) -> Tuple[str, bool, Optional[str]]
                 
         if month_num and 1 <= day <= 31 and 1930 <= year <= 2035:
             formatted = f"{day:02d}.{month_num:02d}.{year}"
+            return formatted, True, None
+
+    # 1b. ISO date format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS (common in Excel exports)
+    m_iso = re.search(r'\b(\d{4})[./\-](\d{1,2})[./\-](\d{1,2})(?:[ T]\d{2}:\d{2}:\d{2})?\b', cleaned)
+    if m_iso:
+        year, month, day = int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3))
+        if 1930 <= year <= 2035 and 1 <= month <= 12 and 1 <= day <= 31:
+            formatted = f"{day:02d}.{month:02d}.{year}"
             return formatted, True, None
 
     # 2. Numeric format: DD.MM.YYYY or DD/MM/YYYY or DD-MM-YYYY or single-digit D.M.YYYY (supports trailing 'г', 'г.', 'года')
@@ -505,6 +525,21 @@ def correct_fio_typos(raw_fio: str) -> Tuple[str, List[str]]:
     # Strip quotes and brackets
     t_clean = re.sub(r'^[\"\'«\(\[\{]+|[\"\'»\)\]\}]+$', '', t_clean).strip()
     
+    # Rejoin patronymics split by space (OCR/typing typo, e.g. 'Александрови Ч' -> 'Александрович')
+    m_split_ch = re.search(r'\b([а-яА-ЯёЁ]{3,}(?:ови|еви|ини|ыч|и))\s+([чЧ])\b', t_clean)
+    if m_split_ch:
+        orig_match = m_split_ch.group(0)
+        rejoined = f"{m_split_ch.group(1)}{m_split_ch.group(2).lower()}"
+        t_clean = t_clean[:m_split_ch.start()] + rejoined + t_clean[m_split_ch.end():]
+        warnings.append(f"Устранено ошибочное разделение отчества пробелом: '{orig_match}' -> '{rejoined}'")
+
+    m_split_a = re.search(r'\b([а-яА-ЯёЁ]{3,}(?:овн|евн|ичн))\s+([аА])\b', t_clean)
+    if m_split_a:
+        orig_match = m_split_a.group(0)
+        rejoined = f"{m_split_a.group(1)}{m_split_a.group(2).lower()}"
+        t_clean = t_clean[:m_split_a.start()] + rejoined + t_clean[m_split_a.end():]
+        warnings.append(f"Устранено ошибочное разделение отчества пробелом: '{orig_match}' -> '{rejoined}'")
+
     words = t_clean.split()
     clean_words = []
     for idx, w in enumerate(words):

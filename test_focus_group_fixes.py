@@ -17,6 +17,7 @@ import doc_reader
 import program_matcher
 import psg_agent
 import ai_vision
+import linguistics
 
 class TestFocusGroupFixes(unittest.TestCase):
 
@@ -145,6 +146,68 @@ class TestFocusGroupFixes(unittest.TestCase):
         finally:
             if os.path.exists(test_file):
                 os.remove(test_file)
+
+    def test_ocr_date_space_and_split_patronymic_autocorrection(self):
+        # 1. Test normalize_date autocorrects OCR spaces in dates directly into valid dates
+        date_cases = [
+            ("26.07.198 2", "26.07.1982"),
+            ("26.07.19 82", "26.07.1982"),
+            ("26.07.1 9 8 2", "26.07.1982"),
+            ("26 . 07 . 1982", "26.07.1982"),
+            ("2 6.07.1982", "26.07.1982"),
+            ("26.0 7.1982", "26.07.1982"),
+            (" 26.07.198 2 г.", "26.07.1982"),
+        ]
+        for inp, expected in date_cases:
+            d_norm, ok, warn = linguistics.normalize_date(inp)
+            self.assertTrue(ok, f"Failed on {inp}: {warn}")
+            self.assertEqual(d_norm, expected)
+
+        # 2. Test split patronymic rejoining and declension
+        fio_inp = "Черняков Сергей Александрови Ч"
+        fio_res = linguistics.process_person_fio(fio_inp)
+        self.assertEqual(fio_res["nom_fio"], "Черняков Сергей Александрович")
+        self.assertEqual(fio_res["dat_fio"], "Чернякову Сергею Александровичу")
+        self.assertEqual(fio_res["gender"], "М")
+        self.assertEqual(fio_res["surname"], "Черняков")
+        self.assertEqual(fio_res["firstname"], "Сергей")
+        self.assertEqual(fio_res["patronymic"], "Александрович")
+
+        # 3. Test parse_student_line end-to-end with this exact focus group line
+        line = "Черняков Сергей Александрови Ч, 26.07.198 2, 146-782-121 80, Монтажник, Охрана труда"
+        student = doc_reader.parse_student_line(line)
+        self.assertIsNotNone(student)
+        self.assertEqual(student["fio_nom"], "Черняков Сергей Александрович")
+        self.assertEqual(student["birth_date"], "26.07.1982")
+        self.assertEqual(student["position"], "Монтажник")
+        self.assertEqual(student["snils"], "146-782-121 80")
+
+        # 4. Test psg_agent processing row directly: birth_date must be clean and have no yellow flag
+        out = psg_agent.process_application(raw_text=line)
+        self.assertTrue(out["success"])
+        students_out = list(out["grouped_data"].values())[0]["students"]
+        self.assertEqual(len(students_out), 1)
+        s0 = students_out[0]
+        self.assertEqual(s0["birth_date"], "26.07.1982")
+        self.assertNotIn("birth_date", s0["yellow_flags"], "birth_date must NOT have error/warning flag")
+
+    def test_user_excel_table_parsing(self):
+        excel_path = "Файлы и ошибки/Заявка на обучения по ОТ от 17.08.2026 Гигант (1).xlsx"
+        if not os.path.exists(excel_path):
+            self.skipTest("Excel test file not found")
+        res = psg_agent.process_application(input_file=excel_path)
+        self.assertTrue(res["success"])
+        self.assertGreaterEqual(res["unique_students"], 18)
+        # Check first student is Akobyan Grant Ashotovich with valid birth_date and position
+        found_akobyan = False
+        for prog, data in res["grouped_data"].items():
+            for s in data["students"]:
+                if "Акобян" in s["fio_nom"]:
+                    found_akobyan = True
+                    self.assertEqual(s["fio_nom"], "Акобян Грант Ашотович")
+                    self.assertEqual(s["birth_date"], "02.01.1969")
+                    self.assertEqual(s["position"], "Монтажник")
+        self.assertTrue(found_akobyan, "Акобян Грант Ашотович must be parsed correctly from Excel")
 
 if __name__ == "__main__":
     unittest.main()

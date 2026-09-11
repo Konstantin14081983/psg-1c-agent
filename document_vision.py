@@ -332,8 +332,8 @@ def extract_birth_date(text: str) -> Optional[str]:
         if ok:
             return norm
 
-    # 3. Numeric format anywhere in text: DD.MM.YYYY
-    m_num = re.search(r'(?:^|[^\d])(\d{1,2}[./\-]\d{1,2}[./\-]\d{4})', clean_ocr)
+    # 3. Numeric format anywhere in text: DD.MM.YYYY (supports internal OCR spaces)
+    m_num = re.search(r'(?:^|[^\d])(\d{1,2}\s*[./\-]\s*\d{1,2}\s*[./\-]\s*(?:\d[\d\s]{0,3}\d|\d{2,4}))', clean_ocr)
     if m_num:
         norm, ok, _ = linguistics.normalize_date(m_num.group(1))
         if ok:
