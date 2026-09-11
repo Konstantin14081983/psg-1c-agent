@@ -10,6 +10,8 @@ Supports:
 
 import os
 import re
+import struct
+import shutil
 import subprocess
 import zipfile
 import xml.etree.ElementTree as ET
@@ -53,14 +55,216 @@ def convert_heic_to_jpeg(heic_path: str) -> Optional[str]:
         print(f"Error converting HEIC with sips: {e}")
     return None
 
+def extract_legacy_doc_data(doc_path: str) -> Dict[str, Any]:
+    """
+    Extracts structured paragraphs and tables from legacy Word 97-2003 (.doc) binary files.
+    Employs pure-Python Compound File Binary Format (CFBF/OLE2) stream parser and FIB piece table decoder.
+    Provides cross-platform fallback via OS text converters (macOS textutil, antiword, catdoc) and binary heuristics.
+    """
+    paragraphs = []
+    tables = []
+    app_title = None
+
+    try:
+        with open(doc_path, 'rb') as f:
+            data = f.read()
+
+        # Check OLE2 magic header: \xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1
+        if len(data) >= 512 and data[:8] == b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1':
+            sector_size = 1 << struct.unpack_from('<H', data, 30)[0]
+            first_dir_sector = struct.unpack_from('<I', data, 48)[0]
+            
+            difat = [struct.unpack_from('<I', data, 76 + 4 * i)[0] for i in range(109)]
+            fat = []
+            for s_idx in difat:
+                if s_idx in (0xFFFFFFFE, 0xFFFFFFFF):
+                    continue
+                offset = (s_idx + 1) * sector_size
+                entries = sector_size // 4
+                fat.extend(struct.unpack_from(f'<{entries}I', data, offset))
+                
+            def get_chain(start_sector):
+                chain = []
+                curr = start_sector
+                while curr < len(fat) and curr not in (0xFFFFFFFE, 0xFFFFFFFF):
+                    chain.append(curr)
+                    curr = fat[curr]
+                    if len(chain) > len(fat):
+                        break
+                return chain
+
+            dir_chain = get_chain(first_dir_sector)
+            dir_bytes = b''.join(data[(s + 1) * sector_size : (s + 2) * sector_size] for s in dir_chain)
+            
+            streams = {}
+            for i in range(0, len(dir_bytes), 128):
+                entry = dir_bytes[i:i+128]
+                if len(entry) < 128:
+                    break
+                name_len = struct.unpack_from('<H', entry, 64)[0]
+                if name_len <= 2:
+                    continue
+                name = entry[:name_len-2].decode('utf-16le', errors='ignore')
+                obj_type = entry[66]
+                start_sec = struct.unpack_from('<I', entry, 116)[0]
+                size = struct.unpack_from('<I', entry, 120)[0]
+                if obj_type == 2:  # Stream
+                    chain = get_chain(start_sec)
+                    streams[name] = b''.join(data[(s + 1) * sector_size : (s + 2) * sector_size] for s in chain)[:size]
+
+            word_doc = streams.get('WordDocument')
+            if word_doc and len(word_doc) >= 500:
+                flags = struct.unpack_from('<H', word_doc, 10)[0]
+                table_stream_name = '1Table' if (flags & 0x0200) else '0Table'
+                table_stream = streams.get(table_stream_name, b'')
+                
+                fc_clx = struct.unpack_from('<I', word_doc, 418)[0]
+                lcb_clx = struct.unpack_from('<I', word_doc, 422)[0]
+                clx = table_stream[fc_clx : fc_clx + lcb_clx]
+                
+                pos = 0
+                pcdt_offset = -1
+                while pos < len(clx):
+                    clxt = clx[pos]
+                    if clxt == 1:
+                        cb = struct.unpack_from('<H', clx, pos + 1)[0]
+                        pos += 3 + cb
+                    elif clxt == 2:
+                        pcdt_offset = pos + 1
+                        break
+                    else:
+                        break
+                        
+                if pcdt_offset != -1:
+                    lcb = struct.unpack_from('<I', clx, pcdt_offset)[0]
+                    plc_pcd = clx[pcdt_offset + 4 : pcdt_offset + 4 + lcb]
+                    n = (len(plc_pcd) - 4) // 12
+                    cps = [struct.unpack_from('<I', plc_pcd, i * 4)[0] for i in range(n + 1)]
+                    pcds = [plc_pcd[(n + 1) * 4 + i * 8 : (n + 1) * 4 + (i + 1) * 8] for i in range(n)]
+                    
+                    full_text_pieces = []
+                    for i in range(n):
+                        cp_len = cps[i+1] - cps[i]
+                        fc_desc = struct.unpack_from('<I', pcds[i], 2)[0]
+                        f_compressed = (fc_desc & (1 << 30)) != 0
+                        fc = fc_desc & ~(1 << 30)
+                        if f_compressed:
+                            raw = word_doc[fc // 2 : fc // 2 + cp_len]
+                            full_text_pieces.append(raw.decode('cp1251', errors='replace'))
+                        else:
+                            raw = word_doc[fc : fc + cp_len * 2]
+                            full_text_pieces.append(raw.decode('utf-16le', errors='replace'))
+                            
+                    full_txt = ''.join(full_text_pieces)
+                    
+                    # Parse rows and cells
+                    current_table = []
+                    rows = full_txt.split('\x07\x07')
+                    for r in rows:
+                        cells = r.split('\x07')
+                        clean_cells = []
+                        for c in cells:
+                            c_clean = c.replace('\x01', '').replace('\x08', '').strip()
+                            clean_cells.append(c_clean)
+                            
+                        # If cell 0 has multiline text preceding a header (e.g. letter text attached to № п/п)
+                        if clean_cells and '\r' in clean_cells[0]:
+                            parts = [p.strip() for p in clean_cells[0].split('\r') if p.strip()]
+                            if len(parts) > 1 and any(k in parts[-1].lower() for k in ['№', 'п/п', 'фио', 'фамил', 'слушател']):
+                                for p in parts[:-1]:
+                                    if p:
+                                        paragraphs.append(p)
+                                clean_cells[0] = parts[-1]
+                            else:
+                                for p in parts:
+                                    if p:
+                                        paragraphs.append(p)
+                                clean_cells[0] = ''
+                                
+                        non_empty = [c for c in clean_cells if c]
+                        if len(non_empty) >= 2 or (current_table and any(non_empty)):
+                            current_table.append(clean_cells)
+                        else:
+                            if current_table:
+                                tables.append(current_table)
+                                current_table = []
+                            for c in clean_cells:
+                                for line in c.split('\r'):
+                                    line_clean = ' '.join(line.split())
+                                    if line_clean:
+                                        paragraphs.append(line_clean)
+                                        
+                    if current_table:
+                        tables.append(current_table)
+                        
+                    for p in paragraphs:
+                        if not app_title and any(k in p.lower() for k in ['заявка на обучение', 'просит провести', 'заявка']):
+                            app_title = p
+                            break
+                            
+                    if tables or paragraphs:
+                        return {
+                            'title': app_title,
+                            'paragraphs': paragraphs,
+                            'tables': tables
+                        }
+    except Exception as e:
+        print(f"CFBF doc extraction notice: {e}")
+
+    # Fallback to macOS textutil / catdoc / antiword
+    try:
+        if shutil.which('textutil'):
+            proc = subprocess.run(['textutil', '-convert', 'txt', doc_path, '-stdout'],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+            if proc.returncode == 0 and proc.stdout.strip():
+                for line in proc.stdout.splitlines():
+                    cl = ' '.join(line.split())
+                    if cl:
+                        paragraphs.append(cl)
+                        if not app_title and 'заявка' in cl.lower():
+                            app_title = cl
+                if paragraphs:
+                    return {'title': app_title, 'paragraphs': paragraphs, 'tables': tables}
+        elif shutil.which('antiword'):
+            proc = subprocess.run(['antiword', doc_path],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+            if proc.returncode == 0 and proc.stdout.strip():
+                for line in proc.stdout.splitlines():
+                    cl = ' '.join(line.split())
+                    if cl:
+                        paragraphs.append(cl)
+                        if not app_title and 'заявка' in cl.lower():
+                            app_title = cl
+                if paragraphs:
+                    return {'title': app_title, 'paragraphs': paragraphs, 'tables': tables}
+    except Exception:
+        pass
+
+    return {'title': app_title, 'paragraphs': paragraphs, 'tables': tables}
+
 def extract_docx_data(docx_path: str) -> Dict[str, Any]:
     """
     Extracts application header, tables, and paragraphs from DOCX/DOC files.
-    Employs 3-tier resilient extraction:
-    1. python-docx (high-level DOM extraction)
+    Employs 4-tier resilient extraction:
+    0. Pure-Python CFBF / OLE2 parser for legacy Word 97-2003 (.doc) binary documents
+    1. python-docx (high-level DOM extraction for .docx)
     2. Direct ZIP XML extraction (resilient to media/relation corruption)
-    3. Binary / plaintext fallback (resilient to old Word 97-2003 .doc / RTF)
+    3. Binary / plaintext fallback (resilient to old Word / RTF)
     """
+    # Tier 0: Check if file is a legacy Word 97-2003 binary (.doc / CFBF)
+    is_ole2 = False
+    try:
+        with open(docx_path, 'rb') as f:
+            header_8 = f.read(8)
+            is_ole2 = (header_8 == b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1')
+    except Exception:
+        pass
+
+    if is_ole2 or docx_path.lower().endswith('.doc'):
+        legacy_res = extract_legacy_doc_data(docx_path)
+        if legacy_res.get('tables') or legacy_res.get('paragraphs'):
+            return legacy_res
+
     app_title = None
     paragraphs = []
     tables = []
@@ -857,6 +1061,47 @@ def parse_incoming_application(
         tables = data.get('tables', [])
         docx_paragraphs = data.get('paragraphs', [])
         letter_progs = extract_letter_programs(docx_paragraphs)
+
+        # If AI analysis requested and available, use AI semantic extraction on Word document content
+        if use_ai:
+            try:
+                import ai_vision
+                doc_text_parts = []
+                if docx_paragraphs:
+                    doc_text_parts.append('\n'.join(docx_paragraphs))
+                for t in tables:
+                    for row in t:
+                        non_empty_cells = [str(c).strip() for c in row if str(c).strip()]
+                        if non_empty_cells:
+                            doc_text_parts.append(' | '.join(non_empty_cells))
+                raw_doc_text = '\n'.join(doc_text_parts).strip()
+                if raw_doc_text:
+                    ai_text_res = ai_vision.analyze_text_message_with_ai(raw_doc_text, api_key=openai_api_key)
+                    if ai_text_res.get("success") and ai_text_res.get("students"):
+                        ai_students = []
+                        common_prog = ai_text_res.get("common_params", {}).get("program") or ("; ".join(letter_progs) if letter_progs else "")
+                        for s in ai_text_res["students"]:
+                            prog = s.get("program") or common_prog
+                            ai_students.append({
+                                "fio_nom": s.get("fio") or s.get("fio_nom") or "Слушатель",
+                                "fio_dat": s.get("fio_dat") or "",
+                                "position": s.get("position") or "",
+                                "gender": s.get("gender") or "",
+                                "birth_date": s.get("birth_date") or "",
+                                "snils": s.get("snils") or "",
+                                "study_dates": s.get("study_dates") or "",
+                                "contacts": s.get("contacts") or "",
+                                "program": prog,
+                                "engine": ai_text_res.get("engine", "OpenAI (GPT-4o-mini)")
+                            })
+                        if ai_students:
+                            return {
+                                "title": ai_text_res.get("common_params", {}).get("application_title") or extracted_title or f"ЗАЯВКА НА ОБУЧЕНИЕ от {datetime.date.today().strftime('%d.%m.%Y')} г.",
+                                "students": ai_students,
+                                "engine": ai_text_res.get("engine", "OpenAI (GPT-4o-mini)")
+                            }
+            except Exception as e:
+                print(f"Word AI extraction notice: {e}")
     elif ext in ('.xlsx', '.xls'):
         data = extract_xlsx_data(file_path)
         extracted_title = data.get('title')
@@ -1061,6 +1306,14 @@ def parse_incoming_application(
             "title": extracted_title or f"ЗАЯВКА НА ОБУЧЕНИЕ от {datetime.date.today().strftime('%d.%m.%Y')} г.",
             "students": students_raw
         }
+
+    # If Word document had no tables (or 0 students extracted from tables), fallback to text paragraphs
+    if ext in ('.docx', '.doc') and not students_raw:
+        if docx_paragraphs:
+            doc_text = '\n'.join(docx_paragraphs)
+            txt_res = parse_raw_text_application(doc_text)
+            if txt_res.get('students'):
+                return txt_res
 
     # If PDF had no tables (or 0 students extracted from tables), fallback to text or OCR
     if ext == '.pdf':

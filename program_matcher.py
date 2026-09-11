@@ -166,11 +166,11 @@ def match_single_program(raw_text: str, position: Optional[str] = None) -> List[
             return [{'name': PROG_ECO_MGMT, 'is_canonical': True, 'warning': None}]
             
     # 4. Check compound OHRANA TRUDA shorthand: e.g. "ОТ (Б+СИЗ+ПП)", "Б+СИЗ+ПП", "ОТ (А+Б+СИЗ+ПП)"
-    has_a = bool(re.search(r'\bа\b|«а»|"а"|„а“|программ[аы]\s*а', t_lower))
-    has_b = bool(re.search(r'\bб\b|«б»|"б"|„б“|программ[аы]\s*б', t_lower))
+    has_a = bool(re.search(r'\(а\)|«а»|"а"|„а“|\bпрограмм[а-я]*\s*[«"„(]?а[»"“)]?|\b(?:от|охрана\s*труда)\s*[«"„(]?а[»"“)]?\b|общим вопросам|функционирования системы управления', t_lower))
+    has_b = bool(re.search(r'\(б\)|«б»|"б"|„б“|\bпрограмм[а-я]*\s*[«"„(]?б[»"“)]?|\b(?:от|охрана\s*труда)\s*[«"„(]?б[»"“)]?\b|вредных|опасных производственных факторов', t_lower))
     has_siz = bool(re.search(r'сиз|средств[а-я\s]*индивидуальной', t_lower))
     has_pp = bool(re.search(r'\bпп\b|перв[а-я\s]*помо[щш]', t_lower))
-    has_v = bool(re.search(r'\bв\b|«в»|"в"|„в“|повышенн[а-я\s]*опасн', t_lower))
+    has_v = bool(re.search(r'\(в\)|«в»|"в"|„в“|\bпрограмм[а-я]*\s*[«"„(]?в[»"“)]?|\b(?:от|охрана\s*труда)\s*[«"„(]?в[»"“)]?\b|повышенн[а-я\s]*опасн', t_lower))
     
     if ('от' in t_lower or 'охрана труда' in t_lower or has_b or has_siz or has_pp or has_a or has_v) and (has_b or has_siz or has_pp or has_a or has_v):
         results = []

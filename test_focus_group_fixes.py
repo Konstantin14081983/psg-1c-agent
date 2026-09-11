@@ -47,7 +47,7 @@ class TestFocusGroupFixes(unittest.TestCase):
         out = psg_agent.process_application(input_file=pdf_path, use_ai=False)
         self.assertTrue(out["success"])
         self.assertEqual(out["unique_students"], 1)
-        self.assertEqual(out["total_enrollments"], 6, "All 6 programs from letter must be enrolled")
+        self.assertEqual(out["total_enrollments"], 7, "All 7 programs from letter must be enrolled")
         self.assertTrue(os.path.exists(out["output_file"]))
 
     def test_kvalifikatsionnoe_worker_profession_mapping(self):
@@ -258,5 +258,56 @@ class TestFocusGroupFixes(unittest.TestCase):
         self.assertNotIn("dat_fio", stud_summary["flags"])
         self.assertNotIn("birth_date", stud_summary["flags"])
 
+    def test_legacy_doc_vakin_standard_and_ai(self):
+        doc_path = "Файлы и ошибки/260701 вакин   штат.doc"
+        if not os.path.exists(doc_path):
+            self.skipTest(f"Test file {doc_path} not found")
+
+        # 1. Standard scanner (use_ai=False)
+        res_std = doc_reader.parse_incoming_application(doc_path, use_ai=False)
+        students = res_std.get("students", [])
+        self.assertEqual(len(students), 1, "Exactly 1 student should be extracted from legacy Word 97-2003 .doc")
+        s = students[0]
+        self.assertEqual(s["fio_nom"], "Вакин Константин Павлович")
+        self.assertEqual(s["birth_date"], "28.01.1980")
+        self.assertEqual(s["position"], "Техник сервиса")
+        self.assertEqual(s["snils"], "146-782-121 80")
+
+        # End-to-end 1C Excel generation
+        out = psg_agent.process_application(input_file=doc_path, use_ai=False)
+        self.assertTrue(out["success"])
+        self.assertEqual(out["unique_students"], 1)
+        self.assertEqual(out["total_enrollments"], 7, "All 7 programs from letter must be enrolled")
+        self.assertTrue(os.path.exists(out["output_file"]))
+
+        # 2. AI mode (use_ai=True) with successful extraction
+        mock_ai_resp = {
+            "success": True,
+            "students": [
+                {
+                    "fio": "Вакин Константин Павлович",
+                    "position": "Техник сервиса",
+                    "birth_date": "28.01.1980",
+                    "gender": "М",
+                    "snils": "146-782-121 80",
+                    "program": "Охрана труда (Б)"
+                }
+            ],
+            "common_params": {"application_title": "Заявка АО Элмек"},
+            "engine": "OpenAI (GPT-4o-mini)"
+        }
+        with patch("ai_vision.analyze_text_message_with_ai", return_value=mock_ai_resp):
+            res_ai = doc_reader.parse_incoming_application(doc_path, use_ai=True)
+            self.assertEqual(len(res_ai.get("students", [])), 1)
+            self.assertEqual(res_ai["students"][0]["fio_nom"], "Вакин Константин Павлович")
+            self.assertEqual(res_ai["engine"], "OpenAI (GPT-4o-mini)")
+
+        # 3. AI error fallback to standard extraction
+        with patch("ai_vision.analyze_text_message_with_ai", return_value={"success": False, "students": [], "error": "API unreachable"}):
+            res_fallback = doc_reader.parse_incoming_application(doc_path, use_ai=True)
+            self.assertEqual(len(res_fallback.get("students", [])), 1)
+            self.assertEqual(res_fallback["students"][0]["fio_nom"], "Вакин Константин Павлович")
+
 if __name__ == "__main__":
     unittest.main()
+
