@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ЧОУ ДПО ЦЕНТР «ПСГ» | Агент 1С — Интеллектуальная подготовка заявок</title>
   
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+
   <!-- Premium Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1704,8 +1708,33 @@
     let activeTab = 'file';
     let selectedFiles = [];
     let currentProcessedData = null;
+    let currentOutputFilename = null;
     let currentTableFilter = 'all';
     let currentSearchQuery = '';
+
+    // Zero-Leakage: Safe cleanup on page refresh, navigation, or tab close
+    function sendCleanupBeacon() {
+      if (!currentOutputFilename) return;
+      const payload = JSON.stringify({ filename: currentOutputFilename });
+      const url = '/api/cleanup';
+      if (navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(url, blob);
+      } else {
+        try {
+          fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true
+          });
+        } catch (e) {}
+      }
+      currentOutputFilename = null;
+    }
+
+    window.addEventListener('beforeunload', sendCleanupBeacon);
+    window.addEventListener('pagehide', sendCleanupBeacon);
 
     // Modern Silicon Valley Toast Engine
     const toast = {
@@ -2291,6 +2320,10 @@
         formData.append('openai_api_key', apiKey);
       }
 
+      if (currentOutputFilename) {
+        sendCleanupBeacon();
+      }
+
       try {
         const response = await fetch('/api/process', {
           method: 'POST',
@@ -2347,6 +2380,7 @@
       }
 
       currentProcessedData = data;
+      currentOutputFilename = data.output_filename;
       document.getElementById('initialPlaceholder').style.display = 'none';
       document.getElementById('resultsContent').style.display = 'block';
       document.getElementById('previewCard').style.display = 'block';
@@ -2449,6 +2483,15 @@
       // Download button
       const downloadBtn = document.getElementById('downloadBtn');
       downloadBtn.href = '/api/download/' + encodeURIComponent(data.output_filename);
+      downloadBtn.onclick = () => {
+        toast.info('Скачивание начато. После загрузки файл удалится с сервера для безопасности ПДн.');
+        const oldFile = currentOutputFilename;
+        setTimeout(() => {
+          if (currentOutputFilename === oldFile) {
+            currentOutputFilename = null;
+          }
+        }, 4000);
+      };
 
       // Render 1C Preview Table with current filters
       render1CTable(data);

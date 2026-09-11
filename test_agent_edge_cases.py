@@ -77,7 +77,7 @@ def test_full_pipeline_synthetic():
     wb.save(test_file)
     
     out_file = "test_synthetic_out.xlsx"
-    res = psg_agent.process_application(test_file, out_file)
+    res = psg_agent.process_application(input_file=test_file, output_file=out_file)
     assert res['success'] is True
     
     # Verify yellow highlights in out_file

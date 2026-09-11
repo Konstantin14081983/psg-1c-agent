@@ -39,6 +39,7 @@ def test_homepage():
     assert "aiModeCard" in response.text
     assert "aiStatusBadge" in response.text
     assert "openaiApiKeyInput" in response.text
+    assert "favicon.ico" in response.text
     print("✓ test_homepage passed")
 
 def test_errors_sample_file():
@@ -591,8 +592,78 @@ def test_ai_status_endpoint():
 
     print("✓ test_ai_status_endpoint passed")
 
+def test_favicon_endpoint():
+    res = client.get("/favicon.ico")
+    assert res.status_code == 200
+    assert "image/x-icon" in res.headers.get("content-type", "")
+    assert len(res.content) > 0
+    print("✓ test_favicon_endpoint passed")
+
+def test_cleanup_endpoint():
+    import web_app
+    dummy_out = os.path.join(web_app.BASE_DIR, "output_1c", "dummy_clean_test.xlsx")
+    dummy_up = os.path.join(web_app.BASE_DIR, "uploads", "dummy_clean_upload.docx")
+    
+    with open(dummy_out, "wb") as f:
+        f.write(b"dummy excel data")
+    with open(dummy_up, "wb") as f:
+        f.write(b"dummy upload data")
+        
+    web_app.TASK_UPLOADS["dummy_clean_test.xlsx"] = [dummy_up]
+    web_app.TASKS["dummy_clean_test.xlsx"] = dummy_out
+    
+    assert os.path.exists(dummy_out)
+    assert os.path.exists(dummy_up)
+    
+    res = client.post("/api/cleanup", json={"filename": "dummy_clean_test.xlsx"})
+    assert res.status_code == 200
+    assert res.json().get("ok") is True
+    assert res.json().get("cleaned") == "dummy_clean_test.xlsx"
+    
+    assert not os.path.exists(dummy_out), "Output file must be deleted by /api/cleanup"
+    assert not os.path.exists(dummy_up), "Associated upload must be deleted by /api/cleanup"
+    assert "dummy_clean_test.xlsx" not in web_app.TASK_UPLOADS
+    
+    res_empty = client.post("/api/cleanup", json={})
+    assert res_empty.status_code == 200
+    assert res_empty.json().get("ok") is False
+    print("✓ test_cleanup_endpoint passed")
+
+def test_download_and_auto_cleanup():
+    import web_app
+    dummy_out = os.path.join(web_app.BASE_DIR, "output_1c", "dummy_download_test.xlsx")
+    dummy_up = os.path.join(web_app.BASE_DIR, "uploads", "dummy_download_upload.docx")
+    
+    with open(dummy_out, "wb") as f:
+        f.write(b"dummy excel download content")
+    with open(dummy_up, "wb") as f:
+        f.write(b"dummy upload content")
+        
+    web_app.TASK_UPLOADS["dummy_download_test.xlsx"] = [dummy_up]
+    web_app.TASKS["dummy_download_test.xlsx"] = dummy_out
+    
+    orig_delay = web_app.CLEANUP_DELAY_SECONDS
+    try:
+        web_app.CLEANUP_DELAY_SECONDS = 0
+        res = client.get("/api/download/dummy_download_test.xlsx")
+        assert res.status_code == 200
+        assert res.content == b"dummy excel download content"
+        
+        assert not os.path.exists(dummy_out), "Output file must be purged after download"
+        assert not os.path.exists(dummy_up), "Upload file must be purged after download"
+        
+        res_after = client.get("/api/download/dummy_download_test.xlsx")
+        assert res_after.status_code == 404
+    finally:
+        web_app.CLEANUP_DELAY_SECONDS = orig_delay
+        
+    print("✓ test_download_and_auto_cleanup passed")
+
 if __name__ == "__main__":
     test_homepage()
+    test_favicon_endpoint()
+    test_cleanup_endpoint()
+    test_download_and_auto_cleanup()
     test_errors_sample_file()
     test_process_raw_text()
     test_image_and_multi_programs()
