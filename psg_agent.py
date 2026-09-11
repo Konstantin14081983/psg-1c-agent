@@ -230,7 +230,7 @@ def process_application(
             yellow_flags['contacts'] = contacts_warn or "Некорректный формат контактов"
             
         # Program matching & expansion
-        matched_progs = program_matcher.match_programs(prog_raw)
+        matched_progs = program_matcher.match_programs(prog_raw, position=pos_clean)
         progs_with_dates = training_rules.assign_sequential_dates(matched_progs, dates_raw)
         
         student_key = fio_res['nom_fio']

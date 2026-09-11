@@ -11,6 +11,7 @@ Tests:
 """
 
 import os
+import unittest
 import openpyxl
 from starlette.testclient import TestClient
 from web_app import app
@@ -644,20 +645,25 @@ def test_download_and_auto_cleanup():
     web_app.TASK_UPLOADS["dummy_download_test.xlsx"] = [dummy_up]
     web_app.TASKS["dummy_download_test.xlsx"] = dummy_out
     
-    orig_delay = web_app.CLEANUP_DELAY_SECONDS
-    try:
-        web_app.CLEANUP_DELAY_SECONDS = 0
-        res = client.get("/api/download/dummy_download_test.xlsx")
-        assert res.status_code == 200
-        assert res.content == b"dummy excel download content"
-        
-        assert not os.path.exists(dummy_out), "Output file must be purged after download"
-        assert not os.path.exists(dummy_up), "Upload file must be purged after download"
-        
-        res_after = client.get("/api/download/dummy_download_test.xlsx")
-        assert res_after.status_code == 404
-    finally:
-        web_app.CLEANUP_DELAY_SECONDS = orig_delay
+    # Verify download succeeds and file is not immediately destroyed (avoids user 404 error)
+    res = client.get("/api/download/dummy_download_test.xlsx")
+    assert res.status_code == 200
+    assert res.content == b"dummy excel download content"
+    assert os.path.exists(dummy_out), "Output file should remain available during download"
+    
+    # Second download should also succeed
+    res2 = client.get("/api/download/dummy_download_test.xlsx")
+    assert res2.status_code == 200
+    
+    # Explicit cleanup via /api/cleanup should safely purge the file
+    res_clean = client.post("/api/cleanup", json={"filename": "dummy_download_test.xlsx"})
+    assert res_clean.status_code == 200
+    assert not os.path.exists(dummy_out), "Output file must be purged after cleanup"
+    assert not os.path.exists(dummy_up), "Upload file must be purged after cleanup"
+    
+    # After cleanup, downloading returns 404
+    res_after = client.get("/api/download/dummy_download_test.xlsx")
+    assert res_after.status_code == 404
         
     print("✓ test_download_and_auto_cleanup passed")
 
@@ -680,6 +686,15 @@ if __name__ == "__main__":
     test_ai_fallback_to_tesseract_on_api_error()
     test_text_input_nlp_autocorrection_and_audit()
     test_ai_status_endpoint()
+    
+    # Run Focus Group Remediation Suite
+    import test_focus_group_fixes
+    suite = unittest.defaultTestLoader.loadTestsFromModule(test_focus_group_fixes)
+    runner = unittest.TextTestRunner(verbosity=1)
+    res_fg = runner.run(suite)
+    assert res_fg.wasSuccessful(), "Focus group tests failed"
+    print("✓ test_focus_group_fixes passed")
+    
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")
 
 

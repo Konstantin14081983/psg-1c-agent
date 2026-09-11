@@ -77,41 +77,57 @@ from PIL import Image
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
-DOCUMENT_EXTRACTION_SYSTEM_PROMPT = """Ты высококвалифицированный эксперт по оптическому распознаванию документов для кадровой системы 1С учебного центра.
-Твоя задача — внимательно проанализировать изображение официального документа и извлечь точные персональные данные.
+DOCUMENT_EXTRACTION_SYSTEM_PROMPT = """Ты главный эксперт учебного центра ЧОУ ДПО ЦЕНТР «ПСГ» по оптическому распознаванию входящих заявок и документов на обучение.
+Твоя задача — внимательно проанализировать изображение/скан/фото и извлечь структурированные данные.
 
-Возможные типы документов:
-- СНИЛС (зеленое страховое свидетельство или бланк АДИ-РЕГ)
-- Паспорт гражданина РФ или иностранный паспорт (Таджикистан, Узбекистан, Азербайджан, Кыргызстан, Казахстан и др.)
-- Патент на работу иностранного гражданина (МВД РФ)
-- Дактилоскопическая карта иностранного гражданина (зеленая карта МВД РФ)
-- Диплом / аттестат об образовании
-- Прочие документы, удостоверяющие личность
+ТИПЫ ДОКУМЕНТОВ:
+1. Заявка на обучение со списком сотрудников (таблица, список, скан письма, приказ).
+2. Письмо-заявка от предприятия (где программы обучения перечислены в тексте письма, а сотрудники — в таблице или списке ниже).
+3. Одиночные документы сотрудника (СНИЛС, паспорт РФ или иностранный, патент МВД, зеленая дактилоскопическая карта, диплом).
 
-ПРАВИЛА ИЗВЛЕЧЕНИЯ:
-1. ФИО: верни Фамилию Имя Отчество на чистом русском языке в именительном падеже (кириллицей). Если в иностранном паспорте имя на латинице (например, NAIMOV ESIN), используй русское написание из документа (НАИМОВ ЕСИН АБДУКОДИРОВИЧ).
-2. Дата рождения: строго в формате ДД.ММ.ГГГГ (например, 12.03.1983 или 01.06.1996). Если в документе месяц написан прописью (например, '12 апреля 1983 года'), переведи в числовой формат '12.04.1983'.
-3. Пол: 'М' или 'Ж'.
-4. СНИЛС: если в документе есть СНИЛС, отформатируй его как XXX-XXX-XXX YY (11 цифр).
-5. Должность / профессия: если в документе указана специальность или профессия (например, в патенте строка 'Профессия (специальность...): Подсобный рабочий'), обязательно извлеки ее в поле position.
-6. Гражданство и номер документа: извлеки, если они присутствуют.
+КРИТИЧЕСКИ ВАЖНЫЕ ПРАВИЛА ИЗВЛЕЧЕНИЯ:
+1. КТО ЯВЛЯЕТСЯ СЛУШАТЕЛЕМ:
+   - Извлекай ВСЕХ направляемых на обучение сотрудников (строки таблицы, пункты списка). Если в таблице 4, 10 или 20 человек — извлеки КАЖДОГО в массив students!
+   - НЕ извлекай адресата в шапке («Директору...», «Генеральному директору...»).
+   - НЕ извлекай подписантов в подвале («Главный инженер...», «Исполнитель...»).
+   - НЕ путай наименование организации («ГОУП Мурманскводоканал», «АО Элмек») с ФИО человека!
 
-Верни результат СТРОГО в виде JSON-объекта по следующей схеме:
+2. ПОЛЯ КАЖДОГО СЛУШАТЕЛЯ:
+   - fio: ФИО строго на русском языке в именительном падеже (кириллицей).
+   - position: Должность или рабочая профессия (например, «Ведущий специалист по ОТиПБ», «Начальник цеха», «Техник сервиса»).
+   - birth_date: Дата рождения строго в числовом формате ДД.ММ.ГГГГ (например, 14.10.1967).
+   - gender: Пол «М» или «Ж».
+   - snils: СНИЛС в формате XXX-XXX-XXX YY (11 цифр).
+   - programs: Список программ обучения для этого слушателя (массив строк). Если в графе написано «Программа: А, Б, В (№ 5, 8, 9, 10, 15, 27) Оказание первой помощи, Применение СИЗ» — разбей на отдельные программы: ["Охрана труда А", "Охрана труда Б", "Охрана труда В", "Оказание первой помощи", "Применение СИЗ"].
+   - study_dates: Сроки обучения если указаны (например, 01.09.2026 - 15.09.2026).
+   - contacts: Телефон или email если указаны.
+
+3. ЕСЛИ ПРОГРАММЫ УКАЗАНЫ ОБЩИМИ В ТЕКСТЕ ПИСЬМА НАД ТАБЛИЦЕЙ:
+   - Помести их в массив "common_programs" и продублируй в programs каждого слушателя!
+
+4. ЕСЛИ ЭТО ОДИНОЧНЫЙ ДОКУМЕНТ (паспорт, СНИЛС, патент):
+   - Помести данные владельца в массив students как единственный элемент.
+
+СХЕМА ОТВЕТА (СТРОГО ВАЛИДНЫЙ JSON):
 {
-  "success": true,
-  "doc_type": "snils" | "passport_rf" | "passport_foreign" | "patent" | "fingerprint_card" | "diploma" | "other",
-  "fio": "Фамилия Имя Отчество",
-  "birth_date": "ДД.ММ.ГГГГ",
-  "gender": "М" | "Ж",
-  "snils": "XXX-XXX-XXX YY",
-  "inn": "ИНН если указан",
-  "doc_number": "Серия и номер",
-  "citizenship": "Гражданство",
-  "position": "Профессия/Должность если указана"
+  "doc_type": "application_table" | "letter_order" | "single_document",
+  "application_title": "Заголовок заявки если есть",
+  "organization": "Наименование организации",
+  "common_programs": ["Программа 1", "Программа 2"],
+  "students": [
+    {
+      "fio": "Фамилия Имя Отчество",
+      "position": "Должность",
+      "birth_date": "ДД.ММ.ГГГГ",
+      "gender": "М" | "Ж",
+      "snils": "XXX-XXX-XXX YY",
+      "programs": ["Программа 1", "Программа 2"],
+      "study_dates": "",
+      "contacts": ""
+    }
+  ]
 }
-Если какое-либо поле отсутствует на документе, укажи для него пустую строку "".
-НЕ ДОБАВЛЯЙ никаких пояснений или markdown-тегов вне JSON. Ответ должен быть только валидным JSON-объектом!
-"""
+Верни ТОЛЬКО валидный JSON-объект без markdown-разметки и пояснений!"""
 
 TEXT_MESSAGE_EXTRACTION_SYSTEM_PROMPT = """Ты аналитик входящих заявок на обучение учебного центра ЧОУ ДПО ЦЕНТР 'ПСГ'.
 Твоя задача — извлечь список слушателей и параметры обучения из неструктурированного текста (сообщение WhatsApp, Telegram, Email).
@@ -428,36 +444,88 @@ def analyze_document_with_ai(
         raw_content = res_json["choices"][0]["message"]["content"]
         extracted = json.loads(raw_content)
 
-        # Post-process and normalize fields
-        fio_clean = extracted.get("fio", "").strip()
-        birth_clean = extracted.get("birth_date", "").strip()
-        snils_clean = extracted.get("snils", "").strip()
-        gender_clean = extracted.get("gender", "").strip().upper()
-        pos_clean = extracted.get("position", "").strip()
+        # Extract and normalize students array
+        raw_students = extracted.get("students", [])
+        if not raw_students and (extracted.get("fio") or extracted.get("snils")):
+            raw_students = [{
+                "fio": extracted.get("fio", ""),
+                "birth_date": extracted.get("birth_date", ""),
+                "gender": extracted.get("gender", ""),
+                "snils": extracted.get("snils", ""),
+                "position": extracted.get("position", ""),
+                "programs": extracted.get("programs", []),
+                "study_dates": extracted.get("study_dates", ""),
+                "contacts": extracted.get("contacts", "")
+            }]
 
-        # Sanitize birth date format
-        if birth_clean:
-            import linguistics
-            norm_date, d_ok, _ = linguistics.normalize_date(birth_clean)
-            if d_ok:
-                birth_clean = norm_date
+        common_progs = extracted.get("common_programs", [])
+        if isinstance(common_progs, str):
+            common_progs = [p.strip() for p in re.split(r'[;\n]+', common_progs) if p.strip()]
 
-        # Sanitize SNILS format
-        if snils_clean:
-            import linguistics
-            norm_snils, s_ok, _ = linguistics.validate_and_format_snils(snils_clean)
-            if s_ok:
-                snils_clean = norm_snils
+        normalized_students = []
+        import linguistics
+        for s in raw_students:
+            s_fio = str(s.get("fio", "")).strip()
+            # Ignore headers/signers/organizations mistakenly captured as FIO
+            if not s_fio or any(ign in s_fio.lower() for ign in ['директор', 'главный инженер', 'исполнитель', 'организаци', 'предприяти', 'таблица']):
+                if not s_fio and (s.get("snils") or s.get("position")):
+                    s_fio = "Слушатель (данные из документа)"
+                else:
+                    continue
+
+            s_birth = str(s.get("birth_date", "")).strip()
+            if s_birth:
+                norm_d, d_ok, _ = linguistics.normalize_date(s_birth)
+                if d_ok:
+                    s_birth = norm_d
+
+            s_snils = str(s.get("snils", "")).strip()
+            if s_snils:
+                norm_s, s_ok, _ = linguistics.validate_and_format_snils(s_snils)
+                if s_ok:
+                    s_snils = norm_s
+
+            s_gender = str(s.get("gender", "")).strip().upper()
+            if s_gender not in ("М", "Ж"):
+                s_gender = ""
+
+            s_progs = s.get("programs", [])
+            if isinstance(s_progs, str):
+                s_progs = [p.strip() for p in re.split(r'[;\n]+', s_progs) if p.strip()]
+            if not s_progs and common_progs:
+                s_progs = list(common_progs)
+
+            prog_str = "; ".join(s_progs) if isinstance(s_progs, list) else str(s_progs)
+
+            normalized_students.append({
+                "fio": s_fio,
+                "position": str(s.get("position", "")).strip(),
+                "birth_date": s_birth,
+                "gender": s_gender,
+                "snils": s_snils,
+                "programs": s_progs,
+                "program": prog_str,
+                "study_dates": str(s.get("study_dates", "")).strip(),
+                "contacts": str(s.get("contacts", "")).strip()
+            })
+
+        first_stud = normalized_students[0] if normalized_students else {}
 
         return {
             "success": True,
-            "fio": fio_clean,
-            "birth_date": birth_clean,
-            "gender": gender_clean if gender_clean in ("М", "Ж") else "",
-            "snils": snils_clean,
-            "position": pos_clean,
-            "inn": extracted.get("inn", ""),
             "doc_type": extracted.get("doc_type", "document"),
+            "application_title": extracted.get("application_title", ""),
+            "organization": extracted.get("organization", ""),
+            "common_programs": common_progs,
+            "students": normalized_students,
+            # Backward-compatible single student properties:
+            "fio": first_stud.get("fio", ""),
+            "position": first_stud.get("position", ""),
+            "birth_date": first_stud.get("birth_date", ""),
+            "gender": first_stud.get("gender", ""),
+            "snils": first_stud.get("snils", ""),
+            "program": first_stud.get("program", ""),
+            "inn": extracted.get("inn", ""),
             "doc_number": extracted.get("doc_number", ""),
             "citizenship": extracted.get("citizenship", ""),
             "engine": f"OpenAI Vision ({model})"

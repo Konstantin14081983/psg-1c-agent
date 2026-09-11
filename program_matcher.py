@@ -66,13 +66,21 @@ PROG_ECO_WASTE = CANONICAL_PROGRAMS[19]
 PROG_ECO_MGMT = CANONICAL_PROGRAMS[20]
 PROG_ECO_SERVICE = CANONICAL_PROGRAMS[21]
 
-def match_programs(raw_text: Any) -> List[Dict[str, Any]]:
+def match_programs(raw_text: Any, position: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Parses customer's program string (or list) into one or more canonical programs.
     Supports MULTIPLE programs separated by ';' or '\n' or passed as a list.
+    Supports 'квалификационное' rule by inferring worker profession from student's position.
     E.g. 'ОТ (Б+СИЗ+ПП); Высота 1 группа' -> matches all selected programs.
     """
     if not raw_text:
+        # If no program specified, check if position indicates a worker profession under qualification
+        if position:
+            clean_pos = position.strip()
+            clean_pos = re.sub(r'/[^/]+/', '', clean_pos).strip()
+            clean_pos = re.sub(r'\(.*?\)', '', clean_pos).strip()
+            if clean_pos and any(w in clean_pos.lower() for w in ['слесар', 'монтаж', 'свар', 'кран', 'стропаль', 'техник', 'водитель', 'электрик', 'бетонщик', 'токарь']):
+                return match_single_program("квалификационное", position=position)
         return [{
             'name': 'Программа не указана',
             'is_canonical': False,
@@ -87,20 +95,47 @@ def match_programs(raw_text: Any) -> List[Dict[str, Any]]:
     if len(items) > 1:
         all_results = []
         for it in items:
-            sub = match_single_program(it)
+            sub = match_single_program(it, position=position)
             for s in sub:
                 if not any(existing['name'] == s['name'] for existing in all_results):
                     all_results.append(s)
-        return all_results if all_results else match_single_program(items[0])
+        return all_results if all_results else match_single_program(items[0], position=position)
         
-    return match_single_program(items[0] if items else "")
+    return match_single_program(items[0] if items else "", position=position)
 
-def match_single_program(raw_text: str) -> List[Dict[str, Any]]:
+def match_single_program(raw_text: str, position: Optional[str] = None) -> List[Dict[str, Any]]:
     text = raw_text.strip()
     text_clean = re.sub(r'\s+', ' ', text)
     t_lower = text_clean.lower()
 
-    
+    # 0. Check 'квалификационное' / повышение квалификации rule -> worker profession from position
+    is_qualif = any(q in t_lower for q in [
+        'квалификационн', 'квалификаци', 'повышение квалификации', 
+        'присвоение квалификации', 'проверка знаний', 'аттестаци'
+    ])
+    if is_qualif and position:
+        clean_pos = position.strip()
+        clean_pos = re.sub(r'/[^/]+/', '', clean_pos).strip()
+        clean_pos = re.sub(r'\(.*?\)', '', clean_pos).strip()
+        pos_low = clean_pos.lower()
+        if clean_pos:
+            if 'кран' in pos_low:
+                return [{'name': CANONICAL_PROGRAMS[0], 'is_canonical': True, 'warning': None}]
+            elif 'стропаль' in pos_low:
+                return [{'name': CANONICAL_PROGRAMS[1], 'is_canonical': True, 'warning': None}]
+            elif 'вышкомонтажник-сварщик' in pos_low:
+                return [{'name': CANONICAL_PROGRAMS[3], 'is_canonical': True, 'warning': None}]
+            elif 'вышкомонтажник' in pos_low:
+                return [{'name': CANONICAL_PROGRAMS[2], 'is_canonical': True, 'warning': None}]
+            elif 'сварщик' in pos_low or 'электрогазосварщик' in pos_low:
+                return [{'name': CANONICAL_PROGRAMS[4], 'is_canonical': True, 'warning': None}]
+            else:
+                return [{
+                    'name': f"Профессиональная подготовка по профессии {clean_pos}",
+                    'is_canonical': True,
+                    'warning': None
+                }]
+
     # 1. Exact match with catalog
     for canon in CANONICAL_PROGRAMS:
         if canon.lower() == t_lower:
@@ -131,11 +166,11 @@ def match_single_program(raw_text: str) -> List[Dict[str, Any]]:
             return [{'name': PROG_ECO_MGMT, 'is_canonical': True, 'warning': None}]
             
     # 4. Check compound OHRANA TRUDA shorthand: e.g. "ОТ (Б+СИЗ+ПП)", "Б+СИЗ+ПП", "ОТ (А+Б+СИЗ+ПП)"
-    has_a = bool(re.search(r'\bа\b|программ[аы]\s*а', t_lower))
-    has_b = bool(re.search(r'\bб\b|программ[аы]\s*б', t_lower))
+    has_a = bool(re.search(r'\bа\b|«а»|"а"|„а“|программ[аы]\s*а', t_lower))
+    has_b = bool(re.search(r'\bб\b|«б»|"б"|„б“|программ[аы]\s*б', t_lower))
     has_siz = bool(re.search(r'сиз|средств[а-я\s]*индивидуальной', t_lower))
-    has_pp = bool(re.search(r'\bпп\b|перв[а-я\s]*помощ', t_lower))
-    has_v = bool(re.search(r'\bв\b|повышенн[а-я\s]*опасн', t_lower))
+    has_pp = bool(re.search(r'\bпп\b|перв[а-я\s]*помо[щш]', t_lower))
+    has_v = bool(re.search(r'\bв\b|«в»|"в"|„в“|повышенн[а-я\s]*опасн', t_lower))
     
     if ('от' in t_lower or 'охрана труда' in t_lower or has_b or has_siz or has_pp or has_a or has_v) and (has_b or has_siz or has_pp or has_a or has_v):
         results = []
@@ -152,6 +187,12 @@ def match_single_program(raw_text: str) -> List[Dict[str, Any]]:
             
         if results:
             return results
+
+    # 4b. Standalone First Aid / PPE checks (with OCR typo tolerance)
+    if any(k in t_lower for k in ['перв', 'помощ', 'помош']) and ('пострадавш' in t_lower or 'производств' in t_lower or 'оказани' in t_lower):
+        return [{'name': PROG_FIRST_AID, 'is_canonical': True, 'warning': None}]
+    if 'сиз' in t_lower or 'индивидуальной защит' in t_lower or 'средств защиты' in t_lower:
+        return [{'name': PROG_PPE, 'is_canonical': True, 'warning': None}]
 
     # 5. OZP (Ограниченные и замкнутые пространства)
     if 'озп' in t_lower or 'замкнут' in t_lower:

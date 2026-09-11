@@ -1733,8 +1733,8 @@
       currentOutputFilename = null;
     }
 
+    // Cleanup on beforeunload (closing browser tab)
     window.addEventListener('beforeunload', sendCleanupBeacon);
-    window.addEventListener('pagehide', sendCleanupBeacon);
 
     // Modern Silicon Valley Toast Engine
     const toast = {
@@ -2483,14 +2483,9 @@
       // Download button
       const downloadBtn = document.getElementById('downloadBtn');
       downloadBtn.href = '/api/download/' + encodeURIComponent(data.output_filename);
+      downloadBtn.setAttribute('download', data.output_filename);
       downloadBtn.onclick = () => {
-        toast.info('Скачивание начато. После загрузки файл удалится с сервера для безопасности ПДн.');
-        const oldFile = currentOutputFilename;
-        setTimeout(() => {
-          if (currentOutputFilename === oldFile) {
-            currentOutputFilename = null;
-          }
-        }, 4000);
+        toast.success('Скачивание файла 1С начато');
       };
 
       // Render 1C Preview Table with current filters

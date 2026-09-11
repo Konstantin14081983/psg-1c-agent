@@ -255,8 +255,7 @@ async def download_file(filename: str):
     return FileResponse(
         file_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename=safe_name,
-        background=BackgroundTask(delayed_cleanup, safe_name)
+        filename=safe_name
     )
 
 @app.post("/api/cleanup")
