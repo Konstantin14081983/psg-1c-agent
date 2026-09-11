@@ -1462,7 +1462,7 @@
                 </div>
                 <i data-lucide="chevron-down" class="accordion-arrow"></i>
               </button>
-              <button type="button" class="btn-clear-params" id="clearManualParams" onclick="resetManualParams(event)" title="Очистить все введенные ручные параметры">
+              <button type="button" class="btn-clear-params" id="clearManualParams" title="Очистить все введенные ручные параметры">
                 <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
                 <span>Очистить параметры</span>
               </button>
@@ -2025,8 +2025,14 @@
       }
     }
 
+    let lastResetManualParamsTime = 0;
     function resetManualParams(e) {
       if (e && e.preventDefault) e.preventDefault();
+      const now = Date.now();
+      if (now - lastResetManualParamsTime < 600) {
+        return;
+      }
+      lastResetManualParamsTime = now;
       
       const cat = document.getElementById('overrideCategory');
       if (cat) cat.value = '';
