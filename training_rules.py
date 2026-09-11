@@ -135,8 +135,9 @@ def classify_program(program_name: str) -> str:
     if any(k in p_lower for k in [
         'безопасным методам и приемам', 'вредных и (или) опасных',
         'первой помощи', 'средств индивидуальной защиты', 'повышенной опасности',
-        'охрана труда', 'от (б+сиз+пп)', 'программа а', 'программа б', 'программа в'
-    ]):
+        'охрана труда', 'охраны труда', 'охране труда', 'охраной труда', 'от (',
+        'программа а', 'программа б', 'программа в', 'общим вопросам охраны труда'
+    ]) or ('охран' in p_lower and 'труд' in p_lower and not any(dp in p_lower for dp in ['переподготовка', '256'])):
         return CAT_OT
         
     if any(k in p_lower for k in [
@@ -158,19 +159,54 @@ def classify_program(program_name: str) -> str:
         
     return CAT_PK_DPP
 
+def calculate_start_date_for_category(
+    category: str,
+    end_date: datetime.date,
+    num_sequential_programs: int = 1
+) -> datetime.date:
+    """
+    Calculates appropriate start date leading up to end_date when start date is not specified.
+    - Worker professions: ~21 calendar days (3 weeks) prior.
+    - PK / DPP: ~10 calendar days prior.
+    - Height / OZP: 3 calendar days prior (or num_sequential_programs).
+    - OT: num_sequential_programs calendar days prior (concluding on end_date).
+    - Permits / Exams: 1-2 days prior.
+    """
+    if category == CAT_WORKER:
+        return end_date - datetime.timedelta(days=21)
+    elif category == CAT_PK_DPP:
+        return end_date - datetime.timedelta(days=10)
+    elif category == CAT_HEIGHT_OZP:
+        return end_date - datetime.timedelta(days=max(num_sequential_programs, 3))
+    elif category == CAT_OT:
+        return end_date - datetime.timedelta(days=max(num_sequential_programs - 1, 1))
+    elif category == CAT_PERMITS_EXAM:
+        return end_date - datetime.timedelta(days=max(num_sequential_programs - 1, 1))
+    return end_date - datetime.timedelta(days=max(num_sequential_programs - 1, 1))
+
 def parse_date_range(dates_str: Optional[str]) -> Tuple[Optional[datetime.date], Optional[datetime.date], Optional[str]]:
-    """Parses start and end dates from string like '25.12.2025 - 16.01.2026'."""
-    if not dates_str or not dates_str.strip():
+    """Parses start and end dates from string like '25.12.2025 - 16.01.2026' or single end date '11.09.2026'."""
+    if not dates_str or not str(dates_str).strip():
         return None, None, "Сроки обучения не указаны"
         
-    cleaned = dates_str.strip()
+    cleaned = str(dates_str).strip()
+    # 0. Clean OCR spaces inside numeric dates (e.g. '11.09.202 6', '11 . 09 . 2026')
+    cleaned = re.sub(r'(\d)\s*([./\-])\s*(\d)', r'\1\2\3', cleaned)
+    cleaned = re.sub(r'(\d)\s*([./\-])\s*(\d)', r'\1\2\3', cleaned)
+    for _ in range(3):
+        cleaned = re.sub(r'(\d{1,2}[./\-]\d{1,2}[./\-]\d{1,3})\s+(\d{1,3})', r'\1\2', cleaned)
+    # Autocorrect 3-digit year like '202' -> '2026'
+    cleaned = re.sub(r'\b(\d{1,2}[./\-]\d{1,2}[./\-])202\b', r'\g<1>2026', cleaned)
+    
     date_matches = re.findall(r'(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})', cleaned)
     
     parsed_dates = []
     for d, m, y in date_matches:
         try:
             day, month, year = int(d), int(m), int(y)
-            if year < 100:
+            if year == 202:
+                year = 2026
+            elif year < 100:
                 year += 1900 if year > 30 else 2000
             parsed_dates.append(datetime.date(year, month, day))
         except Exception:
@@ -182,7 +218,8 @@ def parse_date_range(dates_str: Optional[str]) -> Tuple[Optional[datetime.date],
             return end_d, start_d, "Дата начала позже даты окончания"
         return start_d, end_d, None
     elif len(parsed_dates) == 1:
-        return parsed_dates[0], parsed_dates[0], None
+        # Only one date specified: this is the target end date!
+        return None, parsed_dates[0], None
         
     return None, None, f"Не удалось распознать даты обучения: '{cleaned}'"
 
@@ -316,20 +353,23 @@ def audit_student_program_overlaps(
 
 def assign_sequential_dates(
     matched_programs: List[Dict[str, Any]],
-    dates_raw: Optional[str]
+    dates_raw: Optional[str],
+    default_end_date: Optional[datetime.date] = None
 ) -> List[Tuple[Dict[str, Any], str, bool]]:
     """
     Distributes dates across matched programs.
     If multiple programs belong to a category requiring sequential scheduling
     (e.g. CAT_OT or CAT_HEIGHT_OZP) and a single overall date range is provided,
     splits the overall range into consecutive non-overlapping sub-periods.
+    If only an end date is provided (e.g. '11.09.2026'), calculates appropriate start dates
+    leading up to end date so that training concludes on or before the end date.
     Supports semicolon-delimited date ranges if provided by manager.
     Returns list of (prog_dict, assigned_date_str, was_split).
     """
-    if not dates_raw or not str(dates_raw).strip():
-        return [(p, "", False) for p in matched_programs]
+    if not matched_programs:
+        return []
         
-    cleaned_dates = dates_raw.strip()
+    cleaned_dates = str(dates_raw).strip() if dates_raw else ""
     
     # Check if multiple semicolon-separated date ranges were passed
     if ';' in cleaned_dates:
@@ -338,10 +378,16 @@ def assign_sequential_dates(
             return [(matched_programs[i], parts[i], False) for i in range(len(matched_programs))]
             
     # Parse overall start and end date
-    start_d, end_d, warn = parse_date_range(cleaned_dates)
-    if not start_d or not end_d:
-        return [(p, cleaned_dates, False) for p in matched_programs]
+    start_d, end_d, warn = parse_date_range(cleaned_dates) if cleaned_dates else (None, None, None)
+    if not end_d and default_end_date:
+        end_d = default_end_date
+    elif not end_d and not start_d and not cleaned_dates:
+        return [(p, "", False) for p in matched_programs]
         
+    if not end_d and start_d:
+        end_d = start_d
+        start_d = None
+
     # Check if there are multiple programs requiring sequential training (e.g. OT or Height)
     ot_progs = []
     height_progs = []
@@ -352,22 +398,41 @@ def assign_sequential_dates(
         elif cat == CAT_HEIGHT_OZP:
             height_progs.append(idx)
             
-    # Slices mapping
-    prog_dates = {idx: cleaned_dates for idx in range(len(matched_programs))}
+    # Initial dates mapping for all programs
+    prog_dates = {}
     was_split = False
+    
+    for idx, p in enumerate(matched_programs):
+        cat = classify_program(p.get('name', ''))
+        if end_d:
+            if start_d is None or start_d == end_d:
+                p_start = calculate_start_date_for_category(cat, end_d, 1)
+                prog_dates[idx] = f"{p_start.strftime('%d.%m.%Y')} - {end_d.strftime('%d.%m.%Y')}"
+            else:
+                prog_dates[idx] = f"{start_d.strftime('%d.%m.%Y')} - {end_d.strftime('%d.%m.%Y')}"
+        else:
+            prog_dates[idx] = cleaned_dates
     
     # Sequential partition helper for indices
     def partition_indices(indices: List[int]):
         nonlocal was_split
-        if len(indices) < 2:
+        if not indices or not end_d:
             return
-        was_split = True
         k = len(indices)
-        total_days = (end_d - start_d).days + 1
-        curr = start_d
-        if total_days >= k:
+        if k < 2:
+            p_idx = indices[0]
+            cat = classify_program(matched_programs[p_idx].get('name', ''))
+            if start_d is None or start_d == end_d:
+                p_start = calculate_start_date_for_category(cat, end_d, 1)
+                prog_dates[p_idx] = f"{p_start.strftime('%d.%m.%Y')} - {end_d.strftime('%d.%m.%Y')}"
+            return
+            
+        was_split = True
+        total_days = (end_d - start_d).days + 1 if start_d else 0
+        if start_d and total_days >= k:
             base = total_days // k
             rem = total_days % k
+            curr = start_d
             for i, p_idx in enumerate(indices):
                 days = base + (1 if i < rem else 0)
                 p_start = curr
@@ -375,6 +440,10 @@ def assign_sequential_dates(
                 prog_dates[p_idx] = f"{p_start.strftime('%d.%m.%Y')} - {p_end.strftime('%d.%m.%Y')}"
                 curr = p_end + datetime.timedelta(days=1)
         else:
+            # Training sequence concludes on end_d!
+            # Pick start date backwards so programs finish on or before end_d:
+            seq_start = end_d - datetime.timedelta(days=k - 1)
+            curr = seq_start
             for p_idx in indices:
                 prog_dates[p_idx] = f"{curr.strftime('%d.%m.%Y')} - {curr.strftime('%d.%m.%Y')}"
                 curr = curr + datetime.timedelta(days=1)

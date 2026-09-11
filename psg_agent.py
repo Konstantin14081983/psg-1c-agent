@@ -7,6 +7,7 @@ Supports multi-file batches and intelligent contact cleaning.
 
 import os
 import sys
+import re
 import argparse
 import datetime
 from typing import Dict, Any, List, Optional, Union
@@ -128,6 +129,19 @@ def process_application(
         
     app_title = manual_overrides.get('application_title') or detected_title
     
+    # Extract default application date from title if available
+    default_app_date = None
+    if app_title:
+        m_app_date = re.search(r'(\d{1,2}\.\d{1,2}\.\d{4})', app_title)
+        if m_app_date:
+            d_norm, ok, _ = linguistics.normalize_date(m_app_date.group(1))
+            if ok:
+                try:
+                    d_p = d_norm.split('.')
+                    default_app_date = datetime.date(int(d_p[2]), int(d_p[1]), int(d_p[0]))
+                except Exception:
+                    pass
+    
     # If still no students, create a fallback student from file/input context
     if not raw_students and (input_files_list or raw_text):
         fallback_fio = "Слушатель (данные из входящего документа)"
@@ -231,7 +245,7 @@ def process_application(
             
         # Program matching & expansion
         matched_progs = program_matcher.match_programs(prog_raw, position=pos_clean)
-        progs_with_dates = training_rules.assign_sequential_dates(matched_progs, dates_raw)
+        progs_with_dates = training_rules.assign_sequential_dates(matched_progs, dates_raw, default_end_date=default_app_date)
         
         student_key = fio_res['nom_fio']
         if student_key not in student_enrollment_tracker:

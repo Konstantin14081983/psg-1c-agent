@@ -209,5 +209,54 @@ class TestFocusGroupFixes(unittest.TestCase):
                     self.assertEqual(s["position"], "Монтажник")
         self.assertTrue(found_akobyan, "Акобян Грант Ашотович must be parsed correctly from Excel")
 
+    def test_yarovoy_dative_declension_and_backward_dates(self):
+        # 1. Linguistics: Yarovoy Pavel Aleksandrovich dative declension and typo rejoining
+        res_with_cust = linguistics.process_person_fio("Яровой Павел Александрович", "Яровому Павлу Александрови Чу")
+        self.assertEqual(res_with_cust["nom_fio"], "Яровой Павел Александрович")
+        self.assertEqual(res_with_cust["dat_fio"], "Яровому Павлу Александровичу")
+        self.assertFalse(res_with_cust["has_yellow_flag"], "Must NOT produce yellow flag for customer typo 'Александрови Чу'")
+        self.assertIsNone(res_with_cust["dat_warning"])
+
+        # Auto-declension without customer dative
+        res_auto = linguistics.process_person_fio("Яровой Павел Александрович")
+        self.assertEqual(res_auto["dat_fio"], "Яровому Павлу Александровичу")
+        self.assertFalse(res_auto["has_yellow_flag"])
+
+        # 2. Date distribution backwards leading up to target end date 11.09.2026
+        import training_rules
+        matched = program_matcher.match_programs("Охрана труда А, Охрана труда Б, Первая помощь, Применение СИЗ")
+        self.assertEqual(len(matched), 4)
+        seq = training_rules.assign_sequential_dates(matched, "11.09.2026")
+        assigned_dates = [s[1] for s in seq]
+        self.assertEqual(assigned_dates, [
+            "08.09.2026 - 08.09.2026",
+            "09.09.2026 - 09.09.2026",
+            "10.09.2026 - 10.09.2026",
+            "11.09.2026 - 11.09.2026"
+        ])
+        # Ensure final program concludes on 11.09.2026 and none overflow to 12.09, 13.09, 14.09
+        self.assertTrue(all("2026" in d and "202" not in d.replace("2026", "") for d in assigned_dates))
+
+        # Single worker profession leading up to 11.09.2026
+        matched_worker = program_matcher.match_programs("Сварщик")
+        seq_w = training_rules.assign_sequential_dates(matched_worker, "11.09.2026")
+        self.assertEqual(seq_w[0][1], "21.08.2026 - 11.09.2026")
+
+        # 3. End-to-end processing of application
+        text_input = """1. Яровой Павел Александрович, Яровому Павлу Александрови Чу, 26.07.1982, Монтажник, 11.09.2026
+Программы: Охрана труда А, Охрана труда Б, Первая помощь, Применение СИЗ"""
+        out = psg_agent.process_application(raw_text=text_input)
+        self.assertTrue(out["success"])
+        self.assertEqual(out["unique_students"], 1)
+        self.assertEqual(out["total_enrollments"], 4)
+        
+        stud_summary = out["students_summary"][0]
+        self.assertEqual(stud_summary["fio"], "Яровой Павел Александрович")
+        self.assertEqual(stud_summary["fio_dat"], "Яровому Павлу Александровичу")
+        self.assertEqual(stud_summary["birth_date"], "26.07.1982")
+        self.assertEqual(stud_summary["position"], "Монтажник")
+        self.assertNotIn("dat_fio", stud_summary["flags"])
+        self.assertNotIn("birth_date", stud_summary["flags"])
+
 if __name__ == "__main__":
     unittest.main()

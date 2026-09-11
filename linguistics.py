@@ -310,9 +310,9 @@ def decline_surname_dative(surname: str, gender: str) -> Tuple[str, bool]:
     else:
         if s_lower.endswith(('ов', 'ев', 'ин', 'ын')):
             return s + 'у', True
-        if s_lower.endswith(('ский', 'цкий')):
+        if s_lower.endswith(('ский', 'цкий', 'ской', 'цкой')):
             return s[:-2] + 'ому', True
-        if s_lower.endswith('ый'):
+        if s_lower.endswith(('ый', 'ой')):
             return s[:-2] + 'ому', True
         if s_lower.endswith('ий'):
             return s[:-2] + 'ему', True
@@ -341,6 +341,12 @@ def decline_firstname_dative(firstname: str, gender: str) -> Tuple[str, bool]:
         return fn[:-1] + 'е', True
         
     if gender == 'М':
+        if fn_lower == 'павел':
+            return fn[:-2] + 'лу', True
+        if fn_lower == 'лев':
+            return fn[:-2] + 'ьву', True
+        if fn_lower in ('пётр', 'петр'):
+            return fn[:-1] + 'ру', True
         if fn_lower.endswith('ь'):
             return fn[:-1] + 'ю', True
         if fn_lower.endswith('й'):
@@ -446,13 +452,17 @@ def clean_fio_word(w: str, word_idx: int = 0, total_words: int = 3) -> Tuple[str
     is_name = (word_idx == 1 and total_words >= 2)
     
     # Strip stray tail garbage after patronymics (e.g. 'Фанильевичывсвы' -> 'Фанильевич', 'Ивановичв' -> 'Иванович')
+    # BUT preserve legitimate Russian case inflections:
+    # -у (dative male: Александровичу), -е (dative female: Александровне),
+    # -а (genitive: Александровича), -ем (instrumental: Александровичем),
+    # -ей / -ой (instrumental female: Александровной), and surnames in -енко
     m_pat_tail = re.match(r'^([а-яА-ЯёЁ]{3,}(?:ович|евич|овна|евна|ична|ычна))([а-яА-ЯёЁ]{1,8})$', w_clean, flags=re.I)
     if m_pat_tail:
         stem_pat = m_pat_tail.group(1)
         tail = m_pat_tail.group(2)
-        if tail.lower() not in ('енко', 'ев', 'ева', 'ский', 'ская'):
+        if tail.lower() not in ('у', 'е', 'а', 'ем', 'ей', 'ой', 'енко', 'ев', 'ева', 'ский', 'ская'):
             w_clean = stem_pat
-            warnings.append(f"Удален мусор в конце отчества: '{orig}' -> '{w_clean}'")
+            warnings.append(f"Удален мусорный хвост в отчестве: '{orig}' -> '{w_clean}'")
             w_lower = w_clean.lower()
             is_pat = True
             
@@ -525,15 +535,15 @@ def correct_fio_typos(raw_fio: str) -> Tuple[str, List[str]]:
     # Strip quotes and brackets
     t_clean = re.sub(r'^[\"\'«\(\[\{]+|[\"\'»\)\]\}]+$', '', t_clean).strip()
     
-    # Rejoin patronymics split by space (OCR/typing typo, e.g. 'Александрови Ч' -> 'Александрович')
-    m_split_ch = re.search(r'\b([а-яА-ЯёЁ]{3,}(?:ови|еви|ини|ыч|и))\s+([чЧ])\b', t_clean)
+    # Rejoin patronymics split by space (OCR/typing typo, e.g. 'Александрови Ч' -> 'Александрович', 'Александрови Чу' -> 'Александровичу')
+    m_split_ch = re.search(r'\b([а-яА-ЯёЁ]{3,}(?:ови|еви|ини|ыч|и))\s+([чЧ][уУеЕаАыЫ]?|[чЧ])\b', t_clean)
     if m_split_ch:
         orig_match = m_split_ch.group(0)
         rejoined = f"{m_split_ch.group(1)}{m_split_ch.group(2).lower()}"
         t_clean = t_clean[:m_split_ch.start()] + rejoined + t_clean[m_split_ch.end():]
         warnings.append(f"Устранено ошибочное разделение отчества пробелом: '{orig_match}' -> '{rejoined}'")
 
-    m_split_a = re.search(r'\b([а-яА-ЯёЁ]{3,}(?:овн|евн|ичн))\s+([аА])\b', t_clean)
+    m_split_a = re.search(r'\b([а-яА-ЯёЁ]{3,}(?:овн|евн|ичн))\s+([аАеЕыЫ]?|[аА])\b', t_clean)
     if m_split_a:
         orig_match = m_split_a.group(0)
         rejoined = f"{m_split_a.group(1)}{m_split_a.group(2).lower()}"

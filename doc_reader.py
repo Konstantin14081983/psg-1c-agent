@@ -286,6 +286,8 @@ def identify_columns(header_row: List[str]) -> Dict[str, int]:
             col_map['study_dates'] = idx
 
         # 3. FIO
+        elif any(kw in c for kw in ['дат. падеж', 'дательный', 'в дательном']) or ('дат' in c and any(kw in c for kw in ['фио', 'ф.и.о.', 'слушател', 'сотрудник', 'падеж'])):
+            col_map['fio_dat'] = idx
         elif any(kw in c for kw in ['фио', 'ф.и.о.', 'ф.и.о', 'слушател', 'сотрудник', 'работник', 'фамили', 'обучающ']):
             if 'дат' in c:
                 col_map['fio_dat'] = idx
@@ -331,6 +333,12 @@ PATRONYMIC_ENDINGS = (
     'оглы', 'угли', 'улы', 'кызы', 'гызы'
 )
 
+PATRONYMIC_DATIVE_ENDINGS = (
+    'овичу', 'евичу', 'ичу', 'ычу',
+    'овне', 'евне', 'ичне', 'иничне', 'ычне',
+    'оглы', 'угли', 'улы', 'кызы', 'гызы'
+)
+
 def is_patronymic(word: str) -> bool:
     """Checks if word has typical Russian or Central Asian patronymic ending (or typo/tail garbage)."""
     w = word.strip().lower()
@@ -338,6 +346,29 @@ def is_patronymic(word: str) -> bool:
         return True
     if re.search(r'[а-яё]{3,}(?:ович|евич|овна|евна|ична|ычна)[а-яё]{1,8}$', w):
         return True
+    return False
+
+def is_dative_patronymic(word: str) -> bool:
+    """Checks if word is a patronymic in dative case (e.g. Александровичу, Павловне)."""
+    w = word.strip().lower()
+    if any(w.endswith(end) for end in PATRONYMIC_DATIVE_ENDINGS):
+        return True
+    if re.search(r'[а-яё]{3,}(?:овичу|евичу|овне|евне|ичне|ычне)[а-яё]{0,5}$', w):
+        return True
+    return False
+
+def is_dative_fio_phrase(phrase: str) -> bool:
+    """Checks if phrase is a full name in dative case (e.g. 'Яровому Павлу Александровичу')."""
+    words = phrase.strip().split()
+    if len(words) in (2, 3):
+        if not all(re.match(r'^[а-яА-ЯёЁ\-]+$', w) for w in words):
+            return False
+        if is_dative_patronymic(words[-1]):
+            return True
+        w0_low = words[0].lower()
+        w1_low = words[1].lower()
+        if (w0_low.endswith(('ому', 'ему', 'овой', 'евой')) and w1_low.endswith(('у', 'ю', 'е', 'и'))):
+            return True
     return False
 
 def classify_text_part(part: str) -> str:
@@ -388,11 +419,14 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
     gender = ""
     contacts = ""
     fio = ""
+    fio_dat = ""
     position = ""
     program = current_program or ""
     
-    # 1. Extract study dates range (e.g. 01.09.2026 - 15.09.2026 or 01.09.2026 по 15.09.2026)
-    m_dates = re.search(r'(?:(?:сроки|период|даты(?:\s+обучения)?)[:\s]+)?\b(\d{2}\.\d{2}\.\d{4}\s*(?:[-—–]|по)\s*\d{2}\.\d{2}\.\d{4})\b', line, re.I)
+    # 1. Extract study dates range (e.g. 01.09.2026 - 15.09.2026) or labeled end date (e.g. окончание: 11.09.2026, даты: 11.09.2026)
+    m_dates = re.search(r'(?:(?:сроки|период|даты(?:\s+обучения)?|окончани[ея](?:\s+обучения)?)[:\s]+)\b(\d{2}\.\d{2}\.\d{4}\s*(?:[-—–]|по)\s*\d{2}\.\d{2}\.\d{4}|\d{2}\.\d{2}\.\d{4})\b', line, re.I)
+    if not m_dates:
+        m_dates = re.search(r'\b(\d{2}\.\d{2}\.\d{4}\s*(?:[-—–]|по)\s*\d{2}\.\d{2}\.\d{4})\b', line, re.I)
     if m_dates:
         dates = m_dates.group(1).strip()
         line = line[:m_dates.start()] + ' , ' + line[m_dates.end():]
@@ -451,6 +485,11 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
         position = m_pos_label.group(1).strip()
         line = line[:m_pos_label.start()] + ' , ' + line[m_pos_label.end():]
         
+    m_fiodat_label = re.search(r'(?:фио\s*(?:обучающегося\s*)?в\s*дат(?:ельном)?(?:\s*падеже)?|в\s*дат(?:ельном)?(?:\s*падеже)?|дат(?:ельный)?\s*падеж|фио\s*дат\.?)[:\s]+([^,;\n]+)', line, re.I)
+    if m_fiodat_label:
+        fio_dat = m_fiodat_label.group(1).strip()
+        line = line[:m_fiodat_label.start()] + ' , ' + line[m_fiodat_label.end():]
+
     m_fio_label = re.search(r'(?:фио|слушатель|работник|сотрудник)[:\s]+([^,;\n]+)', line, re.I)
     if m_fio_label:
         fio = m_fio_label.group(1).strip()
@@ -475,10 +514,18 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
             continue
         if re.match(r'^(?:снилс|пол|тел|email|почта|д\.?р\.?|рожд\.?)[:\s]*$', p_clean, re.I):
             continue
-        # Rejoin split patronymics in parts so word splitting recognizes 3 words (e.g. 'Александрови Ч' -> 'Александрович')
-        p_clean = re.sub(r'\b([а-яА-ЯёЁ]{3,}(?:ови|еви|ини|ыч|и))\s+([чЧ])\b', r'\1\2', p_clean)
-        p_clean = re.sub(r'\b([а-яА-ЯёЁ]{3,}(?:овн|евн|ичн))\s+([аА])\b', r'\1\2', p_clean)
+        # Rejoin split patronymics in parts so word splitting recognizes 3 words (e.g. 'Александрови Ч' -> 'Александрович', 'Александрови Чу' -> 'Александровичу')
+        p_clean = re.sub(r'\b([а-яА-ЯёЁ]{3,}(?:ови|еви|ини|ыч|и))\s+([чЧ][уУеЕаАыЫ]?|[чЧ])\b', lambda m: f"{m.group(1)}{m.group(2).lower()}", p_clean)
+        p_clean = re.sub(r'\b([а-яА-ЯёЁ]{3,}(?:овн|евн|ичн))\s+([аАеЕыЫ]?|[аА])\b', lambda m: f"{m.group(1)}{m.group(2).lower()}", p_clean)
         parts.append(p_clean)
+        
+    # If dative FIO is present in parts (e.g. from table or comma list), extract it before FIO or position
+    if not fio_dat:
+        for i, part in enumerate(parts):
+            if is_dative_fio_phrase(part):
+                fio_dat = part
+                parts.pop(i)
+                break
         
     if not fio:
         for i, part in enumerate(parts):
@@ -548,6 +595,15 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
                         parts.pop(i)
                         break
                     
+    # Check if any remaining part is a date (e.g. target study date 11.09.2026)
+    for i in range(len(parts) - 1, -1, -1):
+        p_str = parts[i].strip()
+        if re.match(r'^\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}$', p_str):
+            d_norm, d_ok, _ = linguistics.normalize_date(p_str)
+            if not dates:
+                dates = d_norm if d_ok else p_str
+            parts.pop(i)
+
     # Assign remaining parts to position or program
     for part in parts:
         c = classify_text_part(part)
@@ -573,10 +629,13 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
         if len(f_words) >= 2:
             gender = linguistics.infer_gender(f_words[0], f_words[1], f_words[2] if len(f_words) > 2 else "")
             
+    fio_dat_clean, _ = linguistics.correct_fio_typos(fio_dat) if fio_dat else ("", [])
+    fio_dat_final = fio_dat_clean or fio_dat
+            
     return {
         "fio_nom": fio_final,
         "raw_fio": fio,
-        "fio_dat": "",
+        "fio_dat": fio_dat_final,
         "position": position,
         "gender": gender,
         "birth_date": birth_date,
@@ -615,9 +674,10 @@ def parse_raw_text_application(raw_text: str) -> Dict[str, Any]:
             
         # Check if line indicates a program header
         line_lower = line.lower()
-        is_student_row = (',' in line and len(line.split(',')) >= 2) or ('\t' in line) or bool(re.search(r'\d{3}[\s\-]\d{3}[\s\-]\d{3}', line))
-        if not is_student_row and any(kw in line_lower for kw in ['программа', 'направление', 'курс', 'обучение по', 'охрана труда']) and len(line.split()) < 25:
-            clean_prog = re.sub(r'^(программа|направление|курс)[:\s\-]*', '', line, flags=re.IGNORECASE).strip()
+        is_explicit_prog = any(line_lower.startswith(kw) for kw in ['программа:', 'программы:', 'программа ', 'программы ', 'курс:', 'курсы:', 'направление:'])
+        is_student_row = (not is_explicit_prog) and (((',' in line and len(line.split(',')) >= 3) or ('\t' in line) or bool(re.search(r'\d{3}[\s\-]\d{3}[\s\-]\d{3}', line))))
+        if is_explicit_prog or (not is_student_row and any(kw in line_lower for kw in ['программа', 'направление', 'курс', 'обучение по', 'охрана труда']) and len(line.split()) < 30):
+            clean_prog = re.sub(r'^(программ[аы]|направлени[ея]|курс[ы]?|обучение\s+по)[:\s\-]*', '', line, flags=re.IGNORECASE).strip()
             if clean_prog:
                 current_program = clean_prog
                 continue
@@ -625,6 +685,11 @@ def parse_raw_text_application(raw_text: str) -> Dict[str, Any]:
         stud = parse_student_line(line, current_program)
         if stud:
             students.append(stud)
+            
+    if current_program:
+        for s in students:
+            if not s.get('program'):
+                s['program'] = current_program
             
     return {
         "title": app_title,
@@ -722,6 +787,8 @@ def reconcile_student_records(file_students: List[Dict[str, Any]], text_students
                 target['program'] = t_stud['program']
             if not target.get('study_dates') and t_stud.get('study_dates'):
                 target['study_dates'] = t_stud['study_dates']
+            if not target.get('fio_dat') and t_stud.get('fio_dat'):
+                target['fio_dat'] = t_stud['fio_dat']
             if not target.get('contacts') and t_stud.get('contacts'):
                 target['contacts'] = t_stud['contacts']
         else:

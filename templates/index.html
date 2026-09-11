@@ -2108,9 +2108,9 @@
       } else if (digits.length <= 4) {
         formatted = digits.slice(0, 2) + '.' + digits.slice(2);
         if (digits.length === 4) formatted += '.';
-      } else if (digits.length <= 8) {
+      } else if (digits.length === 8) {
         formatted = digits.slice(0, 2) + '.' + digits.slice(2, 4) + '.' + digits.slice(4);
-        if (digits.length === 8) formatted += ' - ';
+        if (val.includes('-')) formatted += ' - ';
       } else if (digits.length <= 10) {
         formatted = digits.slice(0, 2) + '.' + digits.slice(2, 4) + '.' + digits.slice(4, 8) + ' - ' + digits.slice(8);
         if (digits.length === 10) formatted += '.';
