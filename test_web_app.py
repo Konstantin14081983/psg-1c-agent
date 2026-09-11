@@ -40,6 +40,8 @@ def test_homepage():
     assert "aiStatusBadge" in response.text
     assert "openaiApiKeyInput" in response.text
     assert "favicon.ico" in response.text
+    assert "Регламенты 2026" not in response.text, "Badge 'Регламенты 2026' should be removed"
+    assert "{FAVICON_B64}" not in response.text, "Favicon base64 placeholder must be replaced"
     print("✓ test_homepage passed")
 
 def test_errors_sample_file():

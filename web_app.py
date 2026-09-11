@@ -43,12 +43,20 @@ os.makedirs(os.path.join(BASE_DIR, "uploads"), exist_ok=True)
 os.makedirs(os.path.join(BASE_DIR, "output_1c"), exist_ok=True)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
-# Load logo as base64 for embedding
+# Load logo and favicon as base64 for embedding
 LOGO_B64 = ""
 logo_file = os.path.join(BASE_DIR, "static", "psg_logo.png")
 if os.path.exists(logo_file):
     with open(logo_file, "rb") as f:
         LOGO_B64 = base64.b64encode(f.read()).decode("utf-8")
+
+FAVICON_B64 = ""
+fav_file = os.path.join(BASE_DIR, "static", "favicon-32x32.png")
+if not os.path.exists(fav_file):
+    fav_file = os.path.join(BASE_DIR, "favicon.ico")
+if os.path.exists(fav_file):
+    with open(fav_file, "rb") as f:
+        FAVICON_B64 = base64.b64encode(f.read()).decode("utf-8")
 
 TASKS: Dict[str, str] = {}
 TASK_UPLOADS: Dict[str, List[str]] = {}
@@ -110,11 +118,11 @@ async def delayed_cleanup(output_filename: str, delay_seconds: Optional[int] = N
     _remove_task_files(output_filename)
 
 def get_html_content() -> str:
-    """Reads HTML template and injects dynamic base64 logo."""
+    """Reads HTML template and injects dynamic base64 logo and favicon."""
     if os.path.exists(TEMPLATE_PATH):
         with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
             content = f.read()
-        return content.replace("{LOGO_B64}", LOGO_B64)
+        return content.replace("{LOGO_B64}", LOGO_B64).replace("{FAVICON_B64}", FAVICON_B64)
     return f"<h1>Ошибка: Шаблон {TEMPLATE_PATH} не найден</h1>"
 
 HTML_TEMPLATE = get_html_content()
@@ -127,7 +135,11 @@ async def on_startup():
 async def get_favicon():
     favicon_path = os.path.join(BASE_DIR, "favicon.ico")
     if os.path.exists(favicon_path):
-        return FileResponse(favicon_path, media_type="image/x-icon")
+        return FileResponse(
+            favicon_path,
+            media_type="image/x-icon",
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
     raise HTTPException(status_code=404, detail="Favicon not found")
 
 @app.get("/", response_class=HTMLResponse)
