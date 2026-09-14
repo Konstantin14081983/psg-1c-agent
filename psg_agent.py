@@ -18,6 +18,7 @@ import program_matcher
 import training_rules
 import doc_reader
 import excel_builder
+import docx_builder
 
 def process_application(
     input_file: Optional[Union[str, List[str]]] = None,
@@ -162,7 +163,23 @@ def process_application(
     if not output_file:
         output_dir = os.path.dirname(input_files_list[0]) if input_files_list else "."
         today_clean = datetime.date.today().strftime("%Y%m%d_%H%M%S")
-        output_file = os.path.join(output_dir or ".", f"Заявка_1С_{base_name}_{today_clean}.xlsx")
+        docx_file = os.path.join(output_dir or ".", f"Заявка_1С_{base_name}_{today_clean}.docx")
+        xlsx_file = os.path.join(output_dir or ".", f"Заявка_1С_{base_name}_{today_clean}.xlsx")
+        primary_output = docx_file
+    else:
+        if output_file.lower().endswith('.docx'):
+            docx_file = output_file
+            xlsx_file = output_file[:-5] + '.xlsx'
+            primary_output = docx_file
+        elif output_file.lower().endswith('.xlsx'):
+            xlsx_file = output_file
+            docx_file = output_file[:-5] + '.docx'
+            primary_output = xlsx_file
+        else:
+            docx_file = output_file + '.docx'
+            xlsx_file = output_file + '.xlsx'
+            primary_output = docx_file
+    output_file = primary_output
         
     grouped_programs: Dict[str, Dict[str, Any]] = OrderedDict()
     all_warnings = []
@@ -366,9 +383,13 @@ def process_application(
                 'reason': f"⚠️ {a_err}. Выполнен автоматический откат на локальные алгоритмы / Tesseract OCR."
             })
 
-    # Build Excel spreadsheet with turquoise fills and no comments
+    # Build Word (.docx) application document strictly matching 1C template
+    doc = docx_builder.create_1c_application_docx(app_title, grouped_programs)
+    doc.save(docx_file)
+
+    # Build Excel (.xlsx) spreadsheet with turquoise fills and no comments
     wb = excel_builder.create_1c_application_workbook(app_title, grouped_programs)
-    wb.save(output_file)
+    wb.save(xlsx_file)
     
     total_enrollments = sum(len(p['students']) for p in grouped_programs.values())
     ocr_engine_label = "OpenAI Vision (GPT-4o-mini)" if any("OpenAI" in str(e) for e in engines_used) else "Локальный Tesseract OCR"
@@ -376,8 +397,12 @@ def process_application(
     return {
         "success": True,
         "input_source": input_source_name,
-        "output_file": output_file,
-        "output_filename": os.path.basename(output_file),
+        "output_file": primary_output,
+        "output_filename": os.path.basename(primary_output),
+        "docx_file": docx_file,
+        "docx_filename": os.path.basename(docx_file),
+        "xlsx_file": xlsx_file,
+        "xlsx_filename": os.path.basename(xlsx_file),
         "application_title": app_title,
         "ocr_engine": ocr_engine_label,
         "unique_students": len(raw_students),

@@ -308,6 +308,64 @@ class TestFocusGroupFixes(unittest.TestCase):
             self.assertEqual(len(res_fallback.get("students", [])), 1)
             self.assertEqual(res_fallback["students"][0]["fio_nom"], "Вакин Константин Павлович")
 
+    def test_fio_double_letters_preserved_and_docx_download(self):
+        import docx
+        import docx_builder
+
+        # 1. Test linguistics: Beknazarov Khushkam Asomiddinovich
+        raw_fio = "Бекназаров Хушкам Асомиддинович"
+        fio_res = linguistics.process_person_fio(raw_fio)
+        
+        # Double 'дд' must be preserved in nom_fio and dat_fio
+        self.assertEqual(fio_res["nom_fio"], "Бекназаров Хушкам Асомиддинович")
+        self.assertEqual(fio_res["dat_fio"], "Бекназарову Хушкаму Асомиддиновичу")
+        self.assertTrue(fio_res["has_yellow_flag"])
+        self.assertIn("nom_fio", fio_res["yellow_columns"])
+        self.assertIn("dat_fio", fio_res["yellow_columns"])
+        self.assertTrue(any("задвоение букв" in str(c).lower() for c in fio_res["corrections"]))
+        self.assertTrue(any("Асомиддинович" in str(c) for c in fio_res["corrections"]))
+
+        # 2. Position auto-correction must still work for non-FIO columns
+        import training_rules
+        clean_pos, pos_warn, had_pos_issues = training_rules.normalize_position("сваарщик")
+        self.assertEqual(clean_pos, "Сварщик")
+        self.assertTrue(had_pos_issues)
+
+        # 3. End-to-end processing with psg_agent
+        sample_text = "Бекназаров Хушкам Асомиддинович, сваарщик, 12.05.1988, 123-456-789 00"
+        res = psg_agent.process_application(raw_text=sample_text, manual_overrides={"program": "Охрана труда (программа А)"})
+        self.assertTrue(res["success"])
+        
+        # Verify Word (.docx) is generated as primary output
+        docx_path = res["output_file"]
+        self.assertTrue(docx_path.endswith(".docx"))
+        self.assertTrue(os.path.exists(docx_path))
+        
+        # Verify Excel (.xlsx) is also generated alongside
+        xlsx_path = res["xlsx_file"]
+        self.assertTrue(xlsx_path.endswith(".xlsx"))
+        self.assertTrue(os.path.exists(xlsx_path))
+        
+        # Verify docx table layout
+        doc = docx.Document(docx_path)
+        self.assertEqual(len(doc.tables), 1)
+        tbl = doc.tables[0]
+        self.assertEqual(len(tbl.columns), 9)
+        
+        # Check student in data
+        student = list(res["grouped_data"].values())[0]["students"][0]
+        self.assertEqual(student["fio_nom"], "Бекназаров Хушкам Асомиддинович")
+        self.assertEqual(student["fio_dat"], "Бекназарову Хушкаму Асомиддиновичу")
+        self.assertEqual(student["position"], "Сварщик")
+        self.assertIn("nom_fio", student["yellow_flags"])
+        self.assertIn("dat_fio", student["yellow_flags"])
+
+        # Clean up generated test files
+        if os.path.exists(docx_path):
+            os.remove(docx_path)
+        if os.path.exists(xlsx_path):
+            os.remove(xlsx_path)
+
 if __name__ == "__main__":
     unittest.main()
 

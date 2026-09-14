@@ -107,6 +107,18 @@ def normalize_position(position_raw: Optional[str]) -> Tuple[str, Optional[str],
             
     # Deduplicate tripled letters
     text_dedup = re.sub(r'([а-яА-ЯёЁa-zA-Z])\1{2,}', r'\1', text)
+    # Deduplicate accidental doubled vowels (e.g. сваарщик -> сварщик, водиитель -> водитель)
+    text_dedup = re.sub(r'([аиоуыэюя])\1+', r'\1', text_dedup, flags=re.IGNORECASE)
+    # Deduplicate initial doubled consonants (e.g. Вводитель -> Водитель)
+    text_dedup = re.sub(r'\b([бвгджзклмнпрстфхцчшщ])\1', r'\1', text_dedup, flags=re.IGNORECASE)
+    # Deduplicate non-legitimate double consonants in position words
+    legit_pos_roots = ('кассир', 'программ', 'ассист', 'иллюстр', 'коррект', 'пресс', 'стюардесс', 'аккумул', 'компресс', 'аппарат', 'массаж', 'групп', 'колл', 'тонн', 'баллон')
+    def _sub_pos_cons(m):
+        w = m.group(0)
+        if any(r in w.lower() for r in legit_pos_roots):
+            return w
+        return re.sub(r'([бвгджзклмнпрстфхцчшщ])\1+', r'\1', w, flags=re.IGNORECASE)
+    text_dedup = re.sub(r'[а-яА-ЯёЁa-zA-Z\-]+', _sub_pos_cons, text_dedup)
     if text_dedup != text:
         text = text_dedup
         had_typos = True

@@ -484,27 +484,28 @@ def clean_fio_word(w: str, word_idx: int = 0, total_words: int = 3) -> Tuple[str
                 break
                 
     if not corrected_from_dict:
-        # 2. Tripled letter deduplication: e.g. Ивааанович -> Иванович
-        w_dedup = re.sub(r'([а-яА-ЯёЁa-zA-Z])\1{2,}', r'\1', w_clean)
+        # Check for doubled/repeated letters in FIO
+        # User requirement: In FIO columns (both local Tesseract and AI agent), do NOT auto-correct
+        # doubled letters (e.g. 'Асомиддинович' -> 'Асомидинович').
+        # Instead, preserve original spelling, highlight the cell in yellow, and warn the operator for verification.
+        has_double = False
         
-        # 3. Accidental doubled vowels: protect "еевич" / "еевна", deduplicate other double vowels
-        w_vowels = re.sub(r'([аиоуыэюя])\1+', r'\1', w_dedup, flags=re.IGNORECASE)
-        w_vowels = re.sub(r'е{3,}(вич|вна)', r'ее\1', w_vowels, flags=re.IGNORECASE)
-        w_vowels = re.sub(r'е{2,}(?!вич|вна)', r'е', w_vowels, flags=re.IGNORECASE)
-        
-        # 4. Accidental doubled consonants
-        # Deduplicate initial doubled consonants (e.g. Ппетров -> Петров)
-        w_cons = re.sub(r'^([бвгджзклмнпрстфхцчшщ])\1', r'\1', w_vowels, flags=re.IGNORECASE)
-        # For patronymics and first names, deduplicate non-legitimate double consonants
-        if is_pat or is_name:
-            is_legit = any(root in w_cons.lower() for root in LEGITIMATE_DOUBLE_CONSONANTS)
+        # Check repeated consonants (ignore legitimate Russian roots like Анна, Алла, Геннадий, Кирилл, Филипп etc.)
+        m_cons = re.search(r'([бвгджзклмнпрстфхцчшщ])\1+', w_clean, flags=re.IGNORECASE)
+        if m_cons:
+            is_legit = any(root in w_clean.lower() for root in LEGITIMATE_DOUBLE_CONSONANTS)
             if not is_legit:
-                w_cons = re.sub(r'([бвгджзклмнпрстфхцчшщ])\1+', r'\1', w_cons, flags=re.IGNORECASE)
-            
-        if w_cons.lower() != w_clean.lower():
-            warnings.append(f"Устранено ошибочное задвоение букв: '{orig}' -> '{w_cons}'")
-            
-        w_clean = w_cons
+                has_double = True
+                
+        # Check repeated vowels (ignore legitimate -еевич / -еевна)
+        m_vowels = re.search(r'([аиоуыэюя])\1+', w_clean, flags=re.IGNORECASE)
+        if m_vowels:
+            has_double = True
+        elif re.search(r'е{2,}(?!вич|вна)', w_clean, flags=re.IGNORECASE):
+            has_double = True
+
+        if has_double:
+            warnings.append(f"Задвоение букв в ФИО: '{orig}' (не исправлено, требует сверки)")
 
     # Proper Title Casing (handles hyphenated names like Мамин-Сибиряк)
     w_title = "-".join([part.capitalize() for part in w_clean.split('-')])

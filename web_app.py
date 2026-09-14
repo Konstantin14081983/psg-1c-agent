@@ -96,6 +96,18 @@ def _remove_task_files(output_filename: str):
         except OSError:
             pass
 
+    # Purge sibling file (.xlsx or .docx) if exists
+    alt_ext = ".xlsx" if safe_name.endswith(".docx") else (".docx" if safe_name.endswith(".xlsx") else None)
+    if alt_ext:
+        alt_name = os.path.splitext(safe_name)[0] + alt_ext
+        alt_path = os.path.join(BASE_DIR, "output_1c", alt_name)
+        if os.path.exists(alt_path):
+            try:
+                os.remove(alt_path)
+            except OSError:
+                pass
+        TASKS.pop(alt_name, None)
+
     # 2. Purge associated uploaded files from uploads/
     associated_uploads = TASK_UPLOADS.pop(safe_name, [])
     for up_path in associated_uploads:
@@ -211,20 +223,35 @@ async def process_api(
             openai_api_key=openai_api_key if openai_api_key else None
         )
 
-        if result.get("success") and result.get("output_file"):
-            dest_out = os.path.join(BASE_DIR, "output_1c", result["output_filename"])
-            orig_out = os.path.abspath(result["output_file"])
-            dest_abs = os.path.abspath(dest_out)
-            if orig_out != dest_abs:
-                shutil.copy(orig_out, dest_out)
-                if os.path.exists(orig_out):
-                    try:
-                        os.remove(orig_out)
-                    except OSError:
-                        pass
-            TASKS[result["output_filename"]] = dest_out
-            TASK_UPLOADS[result["output_filename"]] = list(saved_file_paths)
-            result["output_file"] = dest_out
+        if result.get("success"):
+            if result.get("output_file"):
+                dest_out = os.path.join(BASE_DIR, "output_1c", result["output_filename"])
+                orig_out = os.path.abspath(result["output_file"])
+                dest_abs = os.path.abspath(dest_out)
+                if orig_out != dest_abs:
+                    shutil.copy(orig_out, dest_out)
+                    if os.path.exists(orig_out):
+                        try:
+                            os.remove(orig_out)
+                        except OSError:
+                            pass
+                TASKS[result["output_filename"]] = dest_out
+                TASK_UPLOADS[result["output_filename"]] = list(saved_file_paths)
+                result["output_file"] = dest_out
+
+            if result.get("xlsx_file"):
+                dest_xlsx = os.path.join(BASE_DIR, "output_1c", result["xlsx_filename"])
+                orig_xlsx = os.path.abspath(result["xlsx_file"])
+                dest_xlsx_abs = os.path.abspath(dest_xlsx)
+                if orig_xlsx != dest_xlsx_abs:
+                    shutil.copy(orig_xlsx, dest_xlsx)
+                    if os.path.exists(orig_xlsx):
+                        try:
+                            os.remove(orig_xlsx)
+                        except OSError:
+                            pass
+                TASKS[result["xlsx_filename"]] = dest_xlsx
+                result["xlsx_file"] = dest_xlsx
         else:
             for up_path in saved_file_paths:
                 if os.path.exists(up_path):
@@ -252,9 +279,20 @@ async def download_file(filename: str):
     file_path = os.path.join(BASE_DIR, "output_1c", safe_name)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Файл не найден или срок его хранения истек")
+    
+    media_type = "application/octet-stream"
+    if safe_name.lower().endswith(".docx"):
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    elif safe_name.lower().endswith(".doc"):
+        media_type = "application/msword"
+    elif safe_name.lower().endswith(".xlsx"):
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    elif safe_name.lower().endswith(".pdf"):
+        media_type = "application/pdf"
+
     return FileResponse(
         file_path,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        media_type=media_type,
         filename=safe_name
     )
 

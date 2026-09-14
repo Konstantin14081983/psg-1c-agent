@@ -67,8 +67,17 @@ def test_errors_sample_file():
     assert khabibullin_summary["contacts"] == ""
     assert "contacts" not in khabibullin_summary["flags"], "garbage contacts should NOT be flagged yellow"
     
-    # Verify the generated Excel file
-    out_file = os.path.join("output_1c", data["output_filename"])
+    # Verify the generated Word (.docx) and Excel (.xlsx) files
+    out_docx = os.path.join("output_1c", data["output_filename"])
+    assert out_docx.endswith(".docx"), f"Expected .docx primary output, got {out_docx}"
+    assert os.path.exists(out_docx)
+    import docx
+    doc = docx.Document(out_docx)
+    assert len(doc.tables) >= 1
+    assert len(doc.tables[0].columns) == 9
+
+    out_file = os.path.join("output_1c", data["xlsx_filename"])
+    assert os.path.exists(out_file)
     wb = openpyxl.load_workbook(out_file)
     ws = wb["Лист_1"]
     
@@ -327,8 +336,12 @@ def test_file_and_text_reconciliation_no_duplicates():
     fedotov = [s for s in jdata["students_summary"] if "Федотов" in s["fio"]][0]
     assert fedotov["position"] == "Бетонщик"
     
-    # Verify Excel file contents
-    out_file = os.path.join("output_1c", jdata["output_filename"])
+    # Verify Word (.docx) and Excel (.xlsx) file contents
+    out_docx = os.path.join("output_1c", jdata["output_filename"])
+    assert out_docx.endswith(".docx")
+    assert os.path.exists(out_docx)
+    out_file = os.path.join("output_1c", jdata["xlsx_filename"])
+    assert os.path.exists(out_file)
     wb = openpyxl.load_workbook(out_file)
     ws = wb["Лист_1"]
     
@@ -474,15 +487,15 @@ def test_text_input_nlp_autocorrection_and_audit():
     students2 = list(jdata2["grouped_data"].values())[0]["students"]
     assert len(students2) == 1
     s2 = students2[0]
-    assert s2["fio_nom"] == "Петров Сергей Иванович"
+    assert s2["fio_nom"] == "Пеетров Сергей Иваанович", "FIO doubled letters must be preserved, not auto-corrected"
     assert s2["position"] == "Сварщик"
     assert s2["birth_date"] == "15.07.1991"
     assert s2["snils"] == "112-233-445 95"
     assert bool(s2["yellow_flags"]["nom_fio"]) is True
     assert bool(s2["yellow_flags"]["position"]) is True
     warnings2 = jdata2["audit"]["warnings"]
-    assert any("задвоение букв" in w.get("reason", "") for w in warnings2)
-    assert any("опечатки в должности" in w.get("reason", "") and "Сварщик" in w.get("reason", "") for w in warnings2)
+    assert any("задвоение букв" in w.get("reason", "").lower() for w in warnings2)
+    assert any("опечатки в должности" in w.get("reason", "").lower() and "Сварщик" in w.get("reason", "") for w in warnings2)
     print("✓ test_text_input_nlp_autocorrection_and_audit: double letters & formatting passed")
 
     # 3. Test missing letters in patronymics
