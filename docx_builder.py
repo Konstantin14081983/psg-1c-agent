@@ -21,13 +21,18 @@ Creates 1C-compatible Microsoft Word (.docx) applications strictly conforming to
 
 import datetime
 from typing import Dict, Any, Optional
-import docx
-from docx.shared import Inches, Pt, RGBColor
-from docx.enum.section import WD_ORIENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
-from docx.oxml import parse_xml
-from docx.oxml.ns import nsdecls, qn
+try:
+    import docx
+    from docx.shared import Inches, Pt, RGBColor
+    from docx.enum.section import WD_ORIENT
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
+    from docx.oxml import parse_xml
+    from docx.oxml.ns import nsdecls, qn
+    HAS_DOCX = True
+except ImportError:
+    docx = None
+    HAS_DOCX = False
 
 from linguistics import clean_application_title
 
@@ -114,7 +119,7 @@ def _set_repeat_header(row):
 def create_1c_application_docx(
     application_title: Optional[str],
     grouped_programs: Dict[str, Dict[str, Any]]
-) -> docx.Document:
+):
     """
     Builds the 1C application Microsoft Word (.docx) document.
     - Page setup: A4 Landscape with 0.5" margins
@@ -122,6 +127,9 @@ def create_1c_application_docx(
     - Disputed or suspicious cells are highlighted with solid YELLOW fill (#FFFF00).
     - Signatures and consent block at bottom.
     """
+    if not HAS_DOCX:
+        raise ImportError("Пакет 'python-docx' не установлен в окружении Python. Установите его: pip install python-docx")
+
     doc = docx.Document()
     section = doc.sections[0]
     section.orientation = WD_ORIENT.LANDSCAPE

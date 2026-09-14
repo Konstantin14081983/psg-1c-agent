@@ -384,8 +384,13 @@ def process_application(
             })
 
     # Build Word (.docx) application document strictly matching 1C template
-    doc = docx_builder.create_1c_application_docx(app_title, grouped_programs)
-    doc.save(docx_file)
+    if docx_builder.HAS_DOCX:
+        doc = docx_builder.create_1c_application_docx(app_title, grouped_programs)
+        doc.save(docx_file)
+    else:
+        print("⚠️ Внимание: пакет 'python-docx' не установлен в окружении. Создан файл Excel (.xlsx).")
+        docx_file = None
+        primary_output = xlsx_file
 
     # Build Excel (.xlsx) spreadsheet with turquoise fills and no comments
     wb = excel_builder.create_1c_application_workbook(app_title, grouped_programs)
@@ -399,8 +404,8 @@ def process_application(
         "input_source": input_source_name,
         "output_file": primary_output,
         "output_filename": os.path.basename(primary_output),
-        "docx_file": docx_file,
-        "docx_filename": os.path.basename(docx_file),
+        "docx_file": docx_file if docx_file else "",
+        "docx_filename": os.path.basename(docx_file) if docx_file else "",
         "xlsx_file": xlsx_file,
         "xlsx_filename": os.path.basename(xlsx_file),
         "application_title": app_title,
