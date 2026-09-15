@@ -48,6 +48,7 @@ POSITION_TYPOS = [
     (r'\bсварщикк\b', 'сварщик'),
     (r'\bсваршик\b', 'сварщик'),
     (r'\bмошинист\b', 'машинист'),
+    (r'\bмашинст\b', 'машинист'),
     (r'\bмашинисст\b', 'машинист'),
     (r'\bкранна\b', 'крана'),
     (r'\bавтомобильногого\b', 'автомобильного'),
@@ -171,33 +172,99 @@ def classify_program(program_name: str) -> str:
         
     return CAT_PK_DPP
 
+def is_weekend(d: datetime.date) -> bool:
+    return d.weekday() >= 5  # 5=Saturday, 6=Sunday
+
+def next_working_day(d: datetime.date) -> datetime.date:
+    """Advances to next working day (Monday-Friday)."""
+    curr = d + datetime.timedelta(days=1)
+    while is_weekend(curr):
+        curr += datetime.timedelta(days=1)
+    return curr
+
+def prev_working_day(d: datetime.date) -> datetime.date:
+    """Rewinds to previous working day (Monday-Friday)."""
+    curr = d - datetime.timedelta(days=1)
+    while is_weekend(curr):
+        curr -= datetime.timedelta(days=1)
+    return curr
+
+def add_working_days(start_d: datetime.date, num_days: int) -> datetime.date:
+    """Adds num_days working days starting from start_d (inclusive)."""
+    curr = start_d
+    while is_weekend(curr):
+        curr += datetime.timedelta(days=1)
+    days_left = max(num_days - 1, 0)
+    while days_left > 0:
+        curr = next_working_day(curr)
+        days_left -= 1
+    return curr
+
+def subtract_working_days(end_d: datetime.date, num_days: int) -> datetime.date:
+    """Subtracts num_days working days ending on end_d (inclusive)."""
+    curr = end_d
+    while is_weekend(curr):
+        curr -= datetime.timedelta(days=1)
+    days_left = max(num_days - 1, 0)
+    while days_left > 0:
+        curr = prev_working_day(curr)
+        days_left -= 1
+    return curr
+
+def get_program_duration_info(program_name: str, category: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Returns official training duration (hours, days, whether calendar or working days).
+    - ОТ (А, Б, В, СИЗ, ПП): 16 hours (2 working days)
+    - Высота и ОЗП: 24 hours (3 working days)
+    - Рабочие профессии: 240 hours (30 calendar days)
+    - ПК (пожарная, экология 112ч, и т.д.): 72 hours (9 calendar days)
+    - ДПП: 250 hours (32 calendar days)
+    - Ежегодная проверка знаний: 16 hours (2 working days)
+    - Допуски (электроустановки): 24 hours (3 working days)
+    - БДД: 20 hours (3 working days)
+    """
+    if not category:
+        category = classify_program(program_name)
+    p_low = program_name.lower()
+    if 'дпп' in p_low or 'переподготовка' in p_low:
+        return {'hours': 250, 'days': 32, 'calendar': True}
+    elif 'эколог' in p_low:
+        return {'hours': 112, 'days': 14, 'calendar': True}
+    elif 'бдд' in p_low or 'водител' in p_low:
+        return {'hours': 20, 'days': 3, 'calendar': False}
+    elif category == CAT_OT:
+        return {'hours': 16, 'days': 2, 'calendar': False}
+    elif category == CAT_HEIGHT_OZP:
+        return {'hours': 24, 'days': 3, 'calendar': False}
+    elif category == CAT_WORKER:
+        return {'hours': 240, 'days': 30, 'calendar': True}
+    elif category == CAT_PK_DPP:
+        return {'hours': 72, 'days': 9, 'calendar': True}
+    elif category == CAT_PERMITS_EXAM:
+        if 'ежегодн' in p_low or 'проверка' in p_low:
+            return {'hours': 16, 'days': 2, 'calendar': False}
+        return {'hours': 24, 'days': 3, 'calendar': False}
+    return {'hours': 16, 'days': 2, 'calendar': False}
+
 def calculate_start_date_for_category(
     category: str,
     end_date: datetime.date,
-    num_sequential_programs: int = 1
+    num_sequential_programs: int = 1,
+    program_name: str = ""
 ) -> datetime.date:
     """
     Calculates appropriate start date leading up to end_date when start date is not specified.
-    - Worker professions: ~21 calendar days (3 weeks) prior.
-    - PK / DPP: ~10 calendar days prior.
-    - Height / OZP: 3 calendar days prior (or num_sequential_programs).
-    - OT: num_sequential_programs calendar days prior (concluding on end_date).
-    - Permits / Exams: 1-2 days prior.
+    Respects working days (skips weekends) for OT and Height.
     """
-    if category == CAT_WORKER:
-        return end_date - datetime.timedelta(days=21)
-    elif category == CAT_PK_DPP:
-        return end_date - datetime.timedelta(days=10)
-    elif category == CAT_HEIGHT_OZP:
-        return end_date - datetime.timedelta(days=max(num_sequential_programs, 3))
-    elif category == CAT_OT:
-        return end_date - datetime.timedelta(days=max(num_sequential_programs - 1, 1))
-    elif category == CAT_PERMITS_EXAM:
-        return end_date - datetime.timedelta(days=max(num_sequential_programs - 1, 1))
-    return end_date - datetime.timedelta(days=max(num_sequential_programs - 1, 1))
+    info = get_program_duration_info(program_name, category)
+    total_days = info['days'] * max(num_sequential_programs, 1)
+    if info['calendar']:
+        return end_date - datetime.timedelta(days=total_days - 1)
+    else:
+        return subtract_working_days(end_date, total_days)
 
 def parse_date_range(dates_str: Optional[str]) -> Tuple[Optional[datetime.date], Optional[datetime.date], Optional[str]]:
-    """Parses start and end dates from string like '25.12.2025 - 16.01.2026' or single end date '11.09.2026'."""
+    """Parses start and end dates from string like '25.12.2025 - 16.01.2026' or single date '11.09.2026'."""
     if not dates_str or not str(dates_str).strip():
         return None, None, "Сроки обучения не указаны"
         
@@ -230,8 +297,13 @@ def parse_date_range(dates_str: Optional[str]) -> Tuple[Optional[datetime.date],
             return end_d, start_d, "Дата начала позже даты окончания"
         return start_d, end_d, None
     elif len(parsed_dates) == 1:
-        # Only one date specified: this is the target end date!
-        return None, parsed_dates[0], None
+        # Check if text specifies start date (e.g. 'от 18.08', 'трудоустройства 18.08', 'с 18.08', 'начало 18.08')
+        is_start = bool(re.search(r'\b(?:трудоустройств[а-я]*|нач[а-я]*|от|с)\b', cleaned, re.I))
+        is_end = bool(re.search(r'\b(?:окончан[а-я]*|до|по|заверш[а-я]*)\b', cleaned, re.I))
+        if is_start and not is_end:
+            return parsed_dates[0], None, None
+        else:
+            return None, parsed_dates[0], None
         
     return None, None, f"Не удалось распознать даты обучения: '{cleaned}'"
 
@@ -370,98 +442,113 @@ def assign_sequential_dates(
 ) -> List[Tuple[Dict[str, Any], str, bool]]:
     """
     Distributes dates across matched programs.
-    If multiple programs belong to a category requiring sequential scheduling
-    (e.g. CAT_OT or CAT_HEIGHT_OZP) and a single overall date range is provided,
-    splits the overall range into consecutive non-overlapping sub-periods.
-    If only an end date is provided (e.g. '11.09.2026'), calculates appropriate start dates
-    leading up to end date so that training concludes on or before the end date.
-    Supports semicolon-delimited date ranges if provided by manager.
-    Returns list of (prog_dict, assigned_date_str, was_split).
+    - If manager passed semicolon-separated date ranges: assigns each directly.
+    - If a single START date was specified (e.g. 'Дата трудоустройства 18.08.2026' or 'от 18.08.2026'):
+      schedules each program sequentially FORWARD starting from that date,
+      respecting working days for OT/Height (skipping weekends).
+    - If a single END date was specified (e.g. '11.09.2026' or 'окончание 11.09.2026'):
+      schedules each program sequentially BACKWARD so the entire sequence concludes on end date!
+    - If a date range [start, end] was specified:
+      schedules programs sequentially within the window.
     """
     if not matched_programs:
         return []
         
     cleaned_dates = str(dates_raw).strip() if dates_raw else ""
     
-    # Check if multiple semicolon-separated date ranges were passed
+    # 1. Semicolon-separated ranges
     if ';' in cleaned_dates:
         parts = [p.strip() for p in cleaned_dates.split(';') if p.strip()]
         if len(parts) == len(matched_programs):
             return [(matched_programs[i], parts[i], False) for i in range(len(matched_programs))]
             
-    # Parse overall start and end date
     start_d, end_d, warn = parse_date_range(cleaned_dates) if cleaned_dates else (None, None, None)
-    if not end_d and default_end_date:
+    if not start_d and not end_d and default_end_date:
         end_d = default_end_date
-    elif not end_d and not start_d and not cleaned_dates:
+    elif not start_d and not end_d and not cleaned_dates:
         return [(p, "", False) for p in matched_programs]
         
-    if not end_d and start_d:
-        end_d = start_d
-        start_d = None
-
-    # Check if there are multiple programs requiring sequential training (e.g. OT or Height)
-    ot_progs = []
-    height_progs = []
-    for idx, p in enumerate(matched_programs):
-        cat = classify_program(p.get('name', ''))
-        if cat == CAT_OT:
-            ot_progs.append(idx)
-        elif cat == CAT_HEIGHT_OZP:
-            height_progs.append(idx)
-            
-    # Initial dates mapping for all programs
+    n = len(matched_programs)
     prog_dates = {}
-    was_split = False
+    was_split = n > 1
     
-    for idx, p in enumerate(matched_programs):
-        cat = classify_program(p.get('name', ''))
-        if end_d:
-            if start_d is None or start_d == end_d:
-                p_start = calculate_start_date_for_category(cat, end_d, 1)
-                prog_dates[idx] = f"{p_start.strftime('%d.%m.%Y')} - {end_d.strftime('%d.%m.%Y')}"
-            else:
-                prog_dates[idx] = f"{start_d.strftime('%d.%m.%Y')} - {end_d.strftime('%d.%m.%Y')}"
-        else:
-            prog_dates[idx] = cleaned_dates
-    
-    # Sequential partition helper for indices
-    def partition_indices(indices: List[int]):
-        nonlocal was_split
-        if not indices or not end_d:
-            return
-        k = len(indices)
-        if k < 2:
-            p_idx = indices[0]
-            cat = classify_program(matched_programs[p_idx].get('name', ''))
-            if start_d is None or start_d == end_d:
-                p_start = calculate_start_date_for_category(cat, end_d, 1)
-                prog_dates[p_idx] = f"{p_start.strftime('%d.%m.%Y')} - {end_d.strftime('%d.%m.%Y')}"
-            return
-            
-        was_split = True
-        total_days = (end_d - start_d).days + 1 if start_d else 0
-        if start_d and total_days >= k:
-            base = total_days // k
-            rem = total_days % k
-            curr = start_d
-            for i, p_idx in enumerate(indices):
-                days = base + (1 if i < rem else 0)
+    # Case A: Only START date is known (e.g. 'Дата трудоустройства 18.08.2026' or 'от 18.08.2026')
+    if start_d and not end_d:
+        curr = start_d
+        for idx, p in enumerate(matched_programs):
+            cat = classify_program(p.get('name', ''))
+            info = get_program_duration_info(p.get('name', ''), cat)
+            if info['calendar']:
                 p_start = curr
-                p_end = curr + datetime.timedelta(days=days - 1)
-                prog_dates[p_idx] = f"{p_start.strftime('%d.%m.%Y')} - {p_end.strftime('%d.%m.%Y')}"
+                p_end = p_start + datetime.timedelta(days=info['days'] - 1)
+                prog_dates[idx] = f"{p_start.strftime('%d.%m.%Y')} - {p_end.strftime('%d.%m.%Y')}"
                 curr = p_end + datetime.timedelta(days=1)
+            else:
+                while is_weekend(curr):
+                    curr += datetime.timedelta(days=1)
+                p_start = curr
+                p_end = add_working_days(p_start, info['days'])
+                prog_dates[idx] = f"{p_start.strftime('%d.%m.%Y')} - {p_end.strftime('%d.%m.%Y')}"
+                curr = next_working_day(p_end)
+
+    # Case B: Only END date is known (e.g. 'окончание 11.09.2026' or default date)
+    elif end_d and not start_d:
+        # Schedule BACKWARDS from end_d
+        scheduled = []
+        curr_end = end_d
+        for idx in reversed(range(n)):
+            p = matched_programs[idx]
+            cat = classify_program(p.get('name', ''))
+            info = get_program_duration_info(p.get('name', ''), cat)
+            if info['calendar']:
+                p_end = curr_end
+                p_start = p_end - datetime.timedelta(days=info['days'] - 1)
+                scheduled.append((idx, f"{p_start.strftime('%d.%m.%Y')} - {p_end.strftime('%d.%m.%Y')}"))
+                curr_end = p_start - datetime.timedelta(days=1)
+            else:
+                while is_weekend(curr_end):
+                    curr_end -= datetime.timedelta(days=1)
+                p_end = curr_end
+                p_start = subtract_working_days(p_end, info['days'])
+                scheduled.append((idx, f"{p_start.strftime('%d.%m.%Y')} - {p_end.strftime('%d.%m.%Y')}"))
+                curr_end = prev_working_day(p_start)
+        for idx, date_str in scheduled:
+            prog_dates[idx] = date_str
+
+    # Case C: Both start_d and end_d are known (e.g. '01.09.2026 - 15.09.2026')
+    else:
+        if n == 1:
+            prog_dates[0] = f"{start_d.strftime('%d.%m.%Y')} - {end_d.strftime('%d.%m.%Y')}"
         else:
-            # Training sequence concludes on end_d!
-            # Pick start date backwards so programs finish on or before end_d:
-            seq_start = end_d - datetime.timedelta(days=k - 1)
-            curr = seq_start
-            for p_idx in indices:
-                prog_dates[p_idx] = f"{curr.strftime('%d.%m.%Y')} - {curr.strftime('%d.%m.%Y')}"
-                curr = curr + datetime.timedelta(days=1)
-                
-    partition_indices(ot_progs)
-    partition_indices(height_progs)
-    
-    return [(matched_programs[i], prog_dates[i], was_split and (i in ot_progs or i in height_progs)) for i in range(len(matched_programs))]
+            total_req_days = sum(get_program_duration_info(p['name'], classify_program(p['name']))['days'] for p in matched_programs)
+            window_days = (end_d - start_d).days + 1
+            if window_days >= total_req_days:
+                curr = start_d
+                for idx, p in enumerate(matched_programs):
+                    cat = classify_program(p.get('name', ''))
+                    info = get_program_duration_info(p.get('name', ''), cat)
+                    if info['calendar']:
+                        p_start = curr
+                        p_end = p_start + datetime.timedelta(days=info['days'] - 1)
+                        prog_dates[idx] = f"{p_start.strftime('%d.%m.%Y')} - {p_end.strftime('%d.%m.%Y')}"
+                        curr = p_end + datetime.timedelta(days=1)
+                    else:
+                        while is_weekend(curr):
+                            curr += datetime.timedelta(days=1)
+                        p_start = curr
+                        p_end = add_working_days(p_start, info['days'])
+                        prog_dates[idx] = f"{p_start.strftime('%d.%m.%Y')} - {p_end.strftime('%d.%m.%Y')}"
+                        curr = next_working_day(p_end)
+            else:
+                base = max(window_days // n, 1)
+                rem = window_days % n
+                curr = start_d
+                for idx in range(n):
+                    p_days = base + (1 if idx < rem else 0)
+                    p_start = curr
+                    p_end = min(curr + datetime.timedelta(days=p_days - 1), end_d)
+                    prog_dates[idx] = f"{p_start.strftime('%d.%m.%Y')} - {p_end.strftime('%d.%m.%Y')}"
+                    curr = p_end + datetime.timedelta(days=1)
+                    
+    return [(matched_programs[i], prog_dates[i], was_split) for i in range(len(matched_programs))]
 

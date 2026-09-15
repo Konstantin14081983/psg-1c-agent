@@ -109,6 +109,12 @@ DOCUMENT_EXTRACTION_SYSTEM_PROMPT = """Ты главный эксперт уче
 4. ЕСЛИ ЭТО ОДИНОЧНЫЙ ДОКУМЕНТ (паспорт, СНИЛС, патент):
    - Помести данные владельца в массив students как единственный элемент.
 
+5. СТРОГОЕ СООТВЕТСТВИЕ ТЕКСТУ ДОКУМЕНТА:
+   - Извлекай ТОЛЬКО те программы обучения, которые явно написаны в документе!
+   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО додумывать или добавлять программы от себя (например, не добавляй «Пожарная безопасность» или «Электробезопасность», если о них нет ни слова в заявке)!
+   - Не путай строки таблицы между собой: дата рождения и СНИЛС должны строго соответствовать тому человеку, в чьей строке они указаны.
+   - Если в документе несколько страниц — внимательно извлеки данные со ВСЕХ страниц без пропусков!
+
 СХЕМА ОТВЕТА (СТРОГО ВАЛИДНЫЙ JSON):
 {
   "doc_type": "application_table" | "letter_order" | "single_document",
@@ -422,7 +428,7 @@ def analyze_document_with_ai(
             ],
             "response_format": {"type": "json_object"},
             "temperature": 0.0,
-            "max_tokens": 1000
+            "max_tokens": 4000
         }
 
         resp = _http_post(endpoint, headers=headers, json_data=payload, timeout=timeout)
@@ -445,99 +451,186 @@ def analyze_document_with_ai(
         res_json = resp.json()
         raw_content = res_json["choices"][0]["message"]["content"]
         extracted = json.loads(raw_content)
-
-        # Extract and normalize students array
-        raw_students = extracted.get("students", [])
-        if not raw_students and (extracted.get("fio") or extracted.get("snils")):
-            raw_students = [{
-                "fio": extracted.get("fio", ""),
-                "birth_date": extracted.get("birth_date", ""),
-                "gender": extracted.get("gender", ""),
-                "snils": extracted.get("snils", ""),
-                "position": extracted.get("position", ""),
-                "programs": extracted.get("programs", []),
-                "study_dates": extracted.get("study_dates", ""),
-                "contacts": extracted.get("contacts", "")
-            }]
-
-        common_progs = extracted.get("common_programs", [])
-        if isinstance(common_progs, str):
-            common_progs = [p.strip() for p in re.split(r'[;\n]+', common_progs) if p.strip()]
-
-        normalized_students = []
-        import linguistics
-        for s in raw_students:
-            s_fio = str(s.get("fio", "")).strip()
-            # Ignore headers/signers/organizations mistakenly captured as FIO
-            if not s_fio or any(ign in s_fio.lower() for ign in ['директор', 'главный инженер', 'исполнитель', 'организаци', 'предприяти', 'таблица']):
-                if not s_fio and (s.get("snils") or s.get("position")):
-                    s_fio = "Слушатель (данные из документа)"
-                else:
-                    continue
-
-            s_birth = str(s.get("birth_date", "")).strip()
-            if s_birth:
-                norm_d, d_ok, _ = linguistics.normalize_date(s_birth)
-                if d_ok:
-                    s_birth = norm_d
-
-            s_snils = str(s.get("snils", "")).strip()
-            if s_snils:
-                norm_s, s_ok, _ = linguistics.validate_and_format_snils(s_snils)
-                if s_ok:
-                    s_snils = norm_s
-
-            s_gender = str(s.get("gender", "")).strip().upper()
-            if s_gender not in ("М", "Ж"):
-                s_gender = ""
-
-            s_progs = s.get("programs", [])
-            if isinstance(s_progs, str):
-                s_progs = [p.strip() for p in re.split(r'[;\n]+', s_progs) if p.strip()]
-            if not s_progs and common_progs:
-                s_progs = list(common_progs)
-
-            prog_str = "; ".join(s_progs) if isinstance(s_progs, list) else str(s_progs)
-
-            normalized_students.append({
-                "fio": s_fio,
-                "fio_dat": str(s.get("fio_dat", "")).strip(),
-                "position": str(s.get("position", "")).strip(),
-                "birth_date": s_birth,
-                "gender": s_gender,
-                "snils": s_snils,
-                "programs": s_progs,
-                "program": prog_str,
-                "study_dates": str(s.get("study_dates", "")).strip(),
-                "contacts": str(s.get("contacts", "")).strip()
-            })
-
-        first_stud = normalized_students[0] if normalized_students else {}
-
-        return {
-            "success": True,
-            "doc_type": extracted.get("doc_type", "document"),
-            "application_title": extracted.get("application_title", ""),
-            "organization": extracted.get("organization", ""),
-            "common_programs": common_progs,
-            "students": normalized_students,
-            # Backward-compatible single student properties:
-            "fio": first_stud.get("fio", ""),
-            "position": first_stud.get("position", ""),
-            "birth_date": first_stud.get("birth_date", ""),
-            "gender": first_stud.get("gender", ""),
-            "snils": first_stud.get("snils", ""),
-            "program": first_stud.get("program", ""),
-            "inn": extracted.get("inn", ""),
-            "doc_number": extracted.get("doc_number", ""),
-            "citizenship": extracted.get("citizenship", ""),
-            "engine": f"OpenAI Vision ({model})"
-        }
+        return _normalize_vision_response(extracted, model)
 
     except Exception as e:
         return {
             "success": False,
             "error": f"Исключение при вызове OpenAI Vision: {str(e)}"
+        }
+
+def _normalize_vision_response(extracted: Dict[str, Any], model: str) -> Dict[str, Any]:
+    """Helper to parse and normalize raw extracted JSON from OpenAI Vision."""
+    raw_students = extracted.get("students", [])
+    if not raw_students and (extracted.get("fio") or extracted.get("snils")):
+        raw_students = [{
+            "fio": extracted.get("fio", ""),
+            "birth_date": extracted.get("birth_date", ""),
+            "gender": extracted.get("gender", ""),
+            "snils": extracted.get("snils", ""),
+            "position": extracted.get("position", ""),
+            "programs": extracted.get("programs", []),
+            "study_dates": extracted.get("study_dates", ""),
+            "contacts": extracted.get("contacts", "")
+        }]
+
+    common_progs = extracted.get("common_programs", [])
+    if isinstance(common_progs, str):
+        common_progs = [p.strip() for p in re.split(r'[;\n]+', common_progs) if p.strip()]
+
+    normalized_students = []
+    import linguistics
+    for s in raw_students:
+        s_fio = str(s.get("fio", "")).strip()
+        # Ignore headers/signers/organizations mistakenly captured as FIO
+        if not s_fio or any(ign in s_fio.lower() for ign in ['директор', 'главный инженер', 'исполнитель', 'организаци', 'предприяти', 'таблица']):
+            if not s_fio and (s.get("snils") or s.get("position")):
+                s_fio = "Слушатель (данные из документа)"
+            else:
+                continue
+
+        s_birth = str(s.get("birth_date", "")).strip()
+        if s_birth:
+            norm_d, d_ok, _ = linguistics.normalize_date(s_birth)
+            if d_ok:
+                s_birth = norm_d
+
+        s_snils = str(s.get("snils", "")).strip()
+        if s_snils:
+            norm_s, s_ok, _ = linguistics.validate_and_format_snils(s_snils)
+            if s_ok:
+                s_snils = norm_s
+
+        s_gender = str(s.get("gender", "")).strip().upper()
+        if s_gender not in ("М", "Ж"):
+            s_gender = ""
+
+        s_progs = s.get("programs", [])
+        if isinstance(s_progs, str):
+            s_progs = [p.strip() for p in re.split(r'[;\n]+', s_progs) if p.strip()]
+        if not s_progs and common_progs:
+            s_progs = list(common_progs)
+
+        prog_str = "; ".join(s_progs) if isinstance(s_progs, list) else str(s_progs)
+
+        normalized_students.append({
+            "fio": s_fio,
+            "fio_dat": str(s.get("fio_dat", "")).strip(),
+            "position": str(s.get("position", "")).strip(),
+            "birth_date": s_birth,
+            "gender": s_gender,
+            "snils": s_snils,
+            "programs": s_progs,
+            "program": prog_str,
+            "study_dates": str(s.get("study_dates", "")).strip(),
+            "contacts": str(s.get("contacts", "")).strip()
+        })
+
+    first_stud = normalized_students[0] if normalized_students else {}
+
+    return {
+        "success": True,
+        "doc_type": extracted.get("doc_type", "document"),
+        "application_title": extracted.get("application_title", ""),
+        "organization": extracted.get("organization", ""),
+        "common_programs": common_progs,
+        "students": normalized_students,
+        # Backward-compatible single student properties:
+        "fio": first_stud.get("fio", ""),
+        "position": first_stud.get("position", ""),
+        "birth_date": first_stud.get("birth_date", ""),
+        "gender": first_stud.get("gender", ""),
+        "snils": first_stud.get("snils", ""),
+        "program": first_stud.get("program", ""),
+        "inn": extracted.get("inn", ""),
+        "doc_number": extracted.get("doc_number", ""),
+        "citizenship": extracted.get("citizenship", ""),
+        "engine": f"OpenAI Vision ({model})"
+    }
+
+def analyze_multi_page_document_with_ai(
+    image_paths: List[str],
+    api_key: Optional[str] = None,
+    model: str = DEFAULT_MODEL,
+    timeout: int = 60
+) -> Dict[str, Any]:
+    """
+    Analyzes multi-page document photo/scan with OpenAI Vision.
+    Processes all pages sequentially, extracting all students into one array.
+    """
+    if not image_paths:
+        return {"success": False, "error": "Нет страниц для распознавания"}
+    if len(image_paths) == 1:
+        return analyze_document_with_ai(image_paths[0], api_key=api_key, model=model, timeout=timeout)
+
+    resolved_key = get_api_key(api_key)
+    if not resolved_key:
+        return {
+            "success": False,
+            "error": "API-ключ OpenAI не найден. Укажите ключ в настройках или файле .env"
+        }
+
+    try:
+        user_content: List[Dict[str, Any]] = [
+            {
+                "type": "text",
+                "text": (
+                    f"Документ состоит из {len(image_paths)} страниц (прикреплены по порядку). "
+                    "Внимательно изучи ВСЕ страницы документа и извлеки ВСЕХ слушателей со ВСЕХ страниц "
+                    "в единый массив 'students'. Не потеряй ни одного слушателя! Результат строго в JSON."
+                )
+            }
+        ]
+
+        for p in image_paths:
+            data_url, _ = encode_image_to_base64(p)
+            user_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": data_url,
+                    "detail": "high"
+                }
+            })
+
+        base_url = get_base_url()
+        endpoint = f"{base_url}/chat/completions"
+
+        headers = {
+            "Authorization": f"Bearer {resolved_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": DOCUMENT_EXTRACTION_SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": user_content
+                }
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.0,
+            "max_tokens": 4000
+        }
+
+        resp = _http_post(endpoint, headers=headers, json_data=payload, timeout=timeout)
+        if resp.status_code != 200:
+            err_msg = f"Ошибка OpenAI API ({resp.status_code}): {resp.text[:200]}"
+            return {"success": False, "error": err_msg}
+
+        res_json = resp.json()
+        raw_content = res_json["choices"][0]["message"]["content"]
+        extracted = json.loads(raw_content)
+        return _normalize_vision_response(extracted, model)
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Исключение при вызове многостраничного OpenAI Vision: {str(e)}"
         }
 
 def analyze_text_message_with_ai(

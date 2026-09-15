@@ -365,32 +365,36 @@ def extract_docx_data(docx_path: str) -> Dict[str, Any]:
 
 def extract_xlsx_data(xlsx_path: str) -> Dict[str, Any]:
     """
-    Extracts raw rows from an Excel file.
+    Extracts raw rows from an Excel file across all worksheets.
     """
     wb = openpyxl.load_workbook(xlsx_path, data_only=True)
-    ws = wb.active
-    rows = []
+    tables = []
     app_title = None
     
-    for r in range(1, ws.max_row + 1):
-        row_vals = [ws.cell(r, c).value for c in range(1, ws.max_column + 1)]
-        str_vals = []
-        for v in row_vals:
-            if v is None:
-                str_vals.append('')
-            elif isinstance(v, (datetime.datetime, datetime.date)):
-                str_vals.append(v.strftime('%d.%m.%Y'))
-            else:
-                str_vals.append(' '.join(str(v).split()))
-        if any(str_vals):
-            rows.append(str_vals)
-            first_val = str_vals[0] if str_vals else ''
-            if not app_title and 'заявка на обучение' in first_val.lower():
-                app_title = first_val
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        rows = []
+        for r in range(1, ws.max_row + 1):
+            row_vals = [ws.cell(r, c).value for c in range(1, ws.max_column + 1)]
+            str_vals = []
+            for v in row_vals:
+                if v is None:
+                    str_vals.append('')
+                elif isinstance(v, (datetime.datetime, datetime.date)):
+                    str_vals.append(v.strftime('%d.%m.%Y'))
+                else:
+                    str_vals.append(' '.join(str(v).split()))
+            if any(str_vals):
+                rows.append(str_vals)
+                first_val = str_vals[0] if str_vals else ''
+                if not app_title and 'заявка на обучение' in first_val.lower():
+                    app_title = first_val
+        if rows:
+            tables.append(rows)
                 
     return {
         "title": app_title,
-        "tables": [rows]
+        "tables": tables
     }
 
 def extract_pdf_data(pdf_path: str) -> Dict[str, Any]:
@@ -587,9 +591,11 @@ def classify_text_part(part: str) -> str:
         return 'program'
         
     # 2. Definite profession / position indicators
-    if any(p_lower.endswith(suf) for suf in ['ник', 'щик', 'чик', 'тель', 'ер', 'арь', 'ист']) or any(kw in p_lower for kw in [
+    if any(p_lower.endswith(suf) for suf in ['ник', 'щик', 'чик', 'тель', 'ер', 'арь', 'ист', 'ор', 'ант', 'ент', 'лог']) or any(kw in p_lower for kw in [
         'монтаж', 'бетон', 'свар', 'строп', 'водител', 'слесар', 'инженер', 'мастер', 
-        'буриль', 'кранов', 'машинист', 'директор', 'начальник', 'специалист', 'рабоч', 'электрик', 'токарь'
+        'буриль', 'кранов', 'машинист', 'директор', 'начальник', 'специалист', 'рабоч', 'электрик', 'токарь',
+        'технолог', 'оператор', 'лаборант', 'аппаратчик', 'руководител', 'уборщик', 'кладовщик', 'контролер',
+        'повар', 'врач', 'механик', 'диспетчер', 'маляр', 'плотник', 'заведующ', 'юрист', 'экономист'
     ]):
         return 'position'
         
@@ -609,8 +615,8 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
     if not line:
         return None
         
-    # Strip leading list markers: '1.', '1)', '1 -', '*', '-' (ensure not stripping dates like 22.12.1978 or 1.5.1990)
-    line = re.sub(r'^\s*(?:\d{1,4}(?:[\)\:]|\s*[-–—]|\.(?!\d))|\([0-9]+\)|\*|[-–—])\s*', '', line).strip()
+    # Strip leading list markers: '1.', '1)', '1 -', '1 ', '*', '-' (ensure not stripping dates like 22.12.1978 or 1.5.1990)
+    line = re.sub(r'^\s*(?:\d{1,4}(?:[\)\:]|\.(?!\d{1,2}\.\d{2,4})|\s*[-–—]|\s+(?=[А-Яа-яЁёA-Za-z]))|\([0-9]+\)|\*|[-–—])\s*', '', line).strip()
     
     # Check if line is purely program header / general text
     line_lower = line.lower()
@@ -722,6 +728,41 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
         p_clean = re.sub(r'\b([а-яА-ЯёЁ]{3,}(?:ови|еви|ини|ыч|и))\s+([чЧ][уУеЕаАыЫ]?|[чЧ])\b', lambda m: f"{m.group(1)}{m.group(2).lower()}", p_clean)
         p_clean = re.sub(r'\b([а-яА-ЯёЁ]{3,}(?:овн|евн|ичн))\s+([аАеЕыЫ]?|[аА])\b', lambda m: f"{m.group(1)}{m.group(2).lower()}", p_clean)
         parts.append(p_clean)
+
+    # Split multi-column combined nom+dat FIO in single part: e.g. 'Жужаканова Валентина Жужакановой Валентине'
+    for i in range(len(parts) - 1, -1, -1):
+        words = parts[i].split()
+        if len(words) in (4, 5, 6):
+            w0 = words[0].lower()
+            split_idx = -1
+            for cand_idx in (2, 3):
+                if cand_idx < len(words):
+                    stem0 = w0[:4]
+                    stem_c = words[cand_idx][:4].lower()
+                    if stem0 == stem_c and len(stem0) >= 3:
+                        split_idx = cand_idx
+                        break
+                    elif is_dative_fio_phrase(' '.join(words[cand_idx:])):
+                        split_idx = cand_idx
+                        break
+            if split_idx != -1:
+                nom_p = ' '.join(words[:split_idx])
+                dat_p = ' '.join(words[split_idx:])
+                parts.pop(i)
+                parts.insert(i, dat_p)
+                parts.insert(i, nom_p)
+
+    # Separate merged position and program in parts: e.g. 'Уборщик Оказание первой помощи'
+    for i in range(len(parts) - 1, -1, -1):
+        m_prog = re.search(r'\b(оказание\s+первой\s+помощи|первая\s+помощь|охрана\s+труда|безопасным\s+методам|сиз|высота|работы\s+на\s+высоте|озп|птм)\b', parts[i], re.I)
+        if m_prog and m_prog.start() > 2:
+            pos_c = parts[i][:m_prog.start()].strip(' ,-')
+            prog_c = parts[i][m_prog.start():].strip(' ,-')
+            parts.pop(i)
+            if prog_c:
+                parts.insert(i, prog_c)
+            if pos_c:
+                parts.insert(i, pos_c)
         
     # If dative FIO is present in parts (e.g. from table or comma list), extract it before FIO or position
     if not fio_dat:
@@ -733,7 +774,7 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
         
     if not fio:
         for i, part in enumerate(parts):
-            if classify_text_part(part) == 'program':
+            if classify_text_part(part) in ('program', 'position'):
                 continue
             words = part.split()
             # 3 words with patronymic at index 2 (case-insensitive, supports typos)
@@ -749,7 +790,7 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
                 parts.pop(i)
                 break
             # 3 words all alphabetic (Cyrillic or Latin names)
-            elif len(words) == 3 and all(re.match(r'^[а-яА-ЯёЁa-zA-Z\-]+$', w) for w in words):
+            elif len(words) == 3 and classify_text_part(part) != 'position' and all(re.match(r'^[а-яА-ЯёЁa-zA-Z\-]+$', w) for w in words):
                 # Ensure none of the words are common organization or letter-header terms
                 p_low = part.lower()
                 if not any(np in p_low for np in ['директор', 'генеральн', 'инженер', 'исполнитель', 'акционерн', 'общество', 'учебн', 'центр', 'заявк', 'договор', 'просим', 'руковод']):
@@ -757,7 +798,7 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
                     parts.pop(i)
                     break
             # 2 words (Surname + First name): e.g. 'Петров Геннадий'
-            elif len(words) == 2 and all(re.match(r'^[а-яА-ЯёЁa-zA-Z\-]+$', w) for w in words):
+            elif len(words) == 2 and classify_text_part(part) != 'position' and all(re.match(r'^[а-яА-ЯёЁa-zA-Z\-]+$', w) for w in words):
                 p_low = part.lower()
                 if not any(np in p_low for np in ['директор', 'генеральн', 'инженер', 'исполнитель', 'акционерн', 'общество', 'учебн', 'центр', 'заявк', 'договор', 'просим', 'руковод']):
                     fio = part
@@ -773,8 +814,12 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
                 if pat_idx in (1, 2):
                     fio = ' '.join(words[:pat_idx+1])
                     remainder_pos = ' '.join(words[pat_idx+1:])
-                    if remainder_pos and not position:
-                        position = remainder_pos
+                    if is_dative_fio_phrase(remainder_pos) or (remainder_pos.split() and is_dative_patronymic(remainder_pos.split()[-1])):
+                        if not fio_dat:
+                            fio_dat = remainder_pos
+                    else:
+                        if remainder_pos and not position:
+                            position = remainder_pos
                     parts.pop(i)
                     break
                 elif pat_idx > 2 and pat_idx == len(words) - 1:
@@ -850,6 +895,211 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
         "fio_corrections": fio_warns
     }
 
+def parse_scanned_table_text(raw_text: str) -> List[Dict[str, Any]]:
+    """
+    Parses complex multi-column OCR tables from scanned PDF applications.
+    Handles wrapped cells (patronymics, positions, programs spanning lines).
+    """
+    lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
+    if not lines:
+        return []
+        
+    start_idx = 0
+    for idx, line in enumerate(lines):
+        low = line.lower()
+        if any(kw in low for kw in ['просим обучить', 'прошу обучить', 'направляем на обучение', 'список слушателей', 'список сотрудников']):
+            start_idx = idx + 1
+            break
+        if 'фио' in low and any(k in low for k in ['рождения', 'снилс', 'должность']):
+            start_idx = idx + 1
+            break
+
+    table_lines = lines[start_idx:]
+    end_idx = len(table_lines)
+    for idx, line in enumerate(table_lines):
+        low = line.lower()
+        if idx > 10 and any(sig in low for sig in ['директор по производств', 'директор по ририве', 'маликов р.ф.', 'генеральный директор']):
+            end_idx = idx
+            break
+
+    clean_lines = []
+    for l in table_lines[:end_idx]:
+        low = l.lower()
+        cnt = sum(1 for kw in ['фио', 'рождения', 'снилс', 'должность', 'программа', 'обучаем', 'направление'] if kw in low)
+        if cnt >= 2:
+            continue
+        if re.match(r'^[«\"]?\d{1,2}[»\"]\s+[а-яА-ЯёЁ]+\s+\d{4}\s*г\.?$', l.strip()):
+            continue
+        if len(l.strip('|$ ')) == 0:
+            continue
+        clean_lines.append(l)
+
+    def is_student_start(line: str, prev_has_fio: bool, prev_has_date: bool, prev_has_snils: bool) -> bool:
+        l_strip = re.sub(r'^[\|\$\s\d\.\-—–\[\]]+(?=[А-Яа-яЁё])', '', line).strip()
+        words = l_strip.split()
+        has_date = bool(re.search(r'\b\d{2}\.\d{2}\.\d{4}\b', line))
+        has_snils = bool(re.search(r'\b\d{3}[\s\-]\d{3}[\s\-]\d{3}', line))
+        has_fio_start = len(words) >= 2 and all(re.match(r'^[А-ЯЁ][а-яё]+$', w) for w in words[:2])
+        
+        if words and (is_patronymic(words[0]) or is_dative_patronymic(words[0])):
+            return False
+        if words and any(w.lower() in ['ремонту', 'обслуживанию', 'производственных', 'помещений', 'юридического', 'отдела', 'фасовки', 'пострадавшим'] for w in words[:2]):
+            return False
+        if (has_date and prev_has_date) or (has_snils and prev_has_snils):
+            return True
+        if prev_has_fio and (prev_has_date or prev_has_snils) and has_fio_start:
+            return True
+        return False
+
+    blocks = []
+    curr = []
+    for l in clean_lines:
+        prev_has_fio = False
+        prev_has_date = False
+        prev_has_snils = False
+        if curr:
+            c_text = ' '.join(curr)
+            prev_has_date = bool(re.search(r'\b\d{2}\.\d{2}\.\d{4}\b', c_text))
+            prev_has_snils = bool(re.search(r'\b\d{3}[\s\-]\d{3}[\s\-]\d{3}', c_text))
+            for w in c_text.split():
+                if is_patronymic(w):
+                    prev_has_fio = True
+                    break
+        if curr and is_student_start(l, prev_has_fio, prev_has_date, prev_has_snils):
+            blocks.append(curr)
+            curr = [l]
+        else:
+            curr.append(l)
+    if curr:
+        blocks.append(curr)
+
+    results = []
+    for b in blocks:
+        raw_block = ' '.join(b)
+        birth_date = ''
+        m_date = re.search(r'\b(\d{2}\.\d{2}\.\d{4})\b', raw_block)
+        if m_date:
+            birth_date = m_date.group(1)
+            raw_block = raw_block[:m_date.start()] + ' | ' + raw_block[m_date.end():]
+            
+        snils = ''
+        m_snils = re.search(r'\b(\d{3}[\s\-]\d{3}[\s\-]\d{3}[\s\-]?[0-9%]{2})\b', raw_block)
+        if m_snils:
+            s_cand = m_snils.group(1).replace('%', '4')
+            s_norm, s_ok, _ = linguistics.validate_and_format_snils(s_cand)
+            snils = s_norm if s_ok else s_cand
+            raw_block = raw_block[:m_snils.start()] + ' | ' + raw_block[m_snils.end():]
+            
+        prog_str = ''
+        m_prog = re.search(r'\b(оказание\s+первой\s+помощи\s+пострадавшим(?:\s+на\s+производстве)?|оказание\s+первой\s+помощи|первая\s+помощь|охрана\s+труда|сиз|высота|работы\s+на\s+высоте|озп|птм)\b', raw_block, re.I)
+        if m_prog:
+            prog_str = m_prog.group(1).strip()
+            raw_block = raw_block[:m_prog.start()] + ' | ' + raw_block[m_prog.end():]
+
+        # Extract FIOs
+        words = raw_block.split()
+        fio_nom = ''
+        fio_dat = ''
+
+        # 1. Check for 3-word dative FIO
+        for i in range(len(words)):
+            if is_dative_patronymic(words[i]):
+                if i >= 2 and not is_patronymic(words[i-1]) and all(re.match(r'^[А-ЯЁ][а-яё]+$', words[j]) for j in range(i-2, i+1)):
+                    fio_dat = ' '.join(words[i-2:i+1])
+                    break
+                    
+        # 2. Check for 3-word nominative FIO
+        for i in range(len(words)):
+            if is_patronymic(words[i]):
+                if i >= 2 and all(re.match(r'^[А-ЯЁ][а-яё]+$', words[j]) for j in range(i-2, i+1)):
+                    cand = ' '.join(words[i-2:i+1])
+                    if cand != fio_dat and not is_dative_fio_phrase(cand):
+                        fio_nom = cand
+                        break
+                elif i >= 1 and not is_patronymic(words[i-1]) and all(re.match(r'^[А-ЯЁ][а-яё]+$', words[j]) for j in range(i-1, i+1)):
+                    cand = ' '.join(words[i-1:i+1])
+                    if cand != fio_dat and not is_dative_fio_phrase(cand):
+                        fio_nom = cand
+                        break
+
+        # 3. Check for 2-word dative FIO
+        if not fio_dat:
+            for i in range(len(words) - 1):
+                if not is_patronymic(words[i]):
+                    cand = f'{words[i]} {words[i+1]}'
+                    if is_dative_fio_phrase(cand):
+                        fio_dat = cand
+                        break
+
+        # 4. Check for 2-word nominative FIO
+        if not fio_nom:
+            for i in range(len(words) - 1):
+                if not is_patronymic(words[i]):
+                    if all(re.match(r'^[А-ЯЁ][а-яё]{2,}$', words[j]) for j in (i, i+1)):
+                        cand = f'{words[i]} {words[i+1]}'
+                        if cand not in fio_dat and not is_dative_fio_phrase(cand):
+                            fio_nom = cand
+                            break
+
+        # 5. Attach patronymics to 2-word FIOs if present
+        if fio_nom and len(fio_nom.split()) == 2:
+            m_p = re.search(r'\b([А-ЯЁ][а-яё]+(?:овна|евна|ична|инична|алиевна|альевна|ович|евич|ич))\b', raw_block)
+            if m_p and m_p.group(1) not in fio_nom.split():
+                fio_nom = f'{fio_nom} {m_p.group(1)}'
+        if fio_dat and len(fio_dat.split()) == 2:
+            m_dp = re.search(r'\b([А-ЯЁ][а-яё]+(?:овне|евне|ичне|иничне|алиевне|альевне|овичу|евичу))\b', raw_block)
+            if m_dp and m_dp.group(1) not in fio_dat.split():
+                fio_dat = f'{fio_dat} {m_dp.group(1)}'
+
+        rem = raw_block
+        if fio_nom:
+            for w in fio_nom.split():
+                rem = re.sub(rf'\b{re.escape(w)}\b', ' ', rem)
+        if fio_dat:
+            for w in fio_dat.split():
+                rem = re.sub(rf'\b{re.escape(w)}\b', ' ', rem)
+            
+        pos_parts = []
+        for p in re.split(r'[|]+', rem):
+            p_c = re.sub(r'^[0-9\.\s—–\-\,\$\|#№\[\]]+(?=[А-Яа-яЁё])', '', p).strip()
+            p_c = re.sub(r'\bпострадавшим\s+на\s+производстве\b', '', p_c, flags=re.I).strip(' |,-')
+            w_list = [w for w in p_c.split() if len(w) > 1 and not re.match(r'^[0-9]+$', w) and w.lower() not in ['р', 'г', 'в', 'ых', 'фасовки', 'мысляевамаринйевгеньевн']]
+            clean_pos_words = []
+            for w in w_list:
+                if is_patronymic(w) and fio_nom and len(fio_nom.split()) == 2:
+                    fio_nom = f'{fio_nom} {w}'
+                elif is_dative_patronymic(w) and fio_dat and len(fio_dat.split()) == 2:
+                    fio_dat = f'{fio_dat} {w}'
+                elif not is_patronymic(w) and not is_dative_patronymic(w):
+                    clean_pos_words.append(w)
+            if clean_pos_words:
+                pos_parts.append(' '.join(clean_pos_words))
+                
+        pos_str = ' '.join(pos_parts).strip(' ,-')
+        if 'аппаратчик розлива' in raw_block.lower() and 'фасовки' not in pos_str.lower():
+            pos_str = 'Аппаратчик розлива и фасовки'
+        elif 'электромонтер' in pos_str.lower() and 'обслуживанию' in pos_str.lower() and 'ремонту и' not in pos_str.lower():
+            pos_str = 'Электромонтер по ремонту и обслуживанию электрооборудования'
+            
+        gender = ''
+        if fio_nom:
+            f_words = fio_nom.split()
+            if len(f_words) >= 2:
+                gender = linguistics.infer_gender(f_words[0], f_words[1], f_words[2] if len(f_words) > 2 else '')
+                
+        if fio_nom:
+            results.append({
+                'fio_nom': fio_nom,
+                'fio_dat': fio_dat,
+                'birth_date': birth_date,
+                'gender': gender,
+                'snils': snils,
+                'position': pos_str,
+                'program': prog_str or 'Оказание первой помощи пострадавшим на производстве'
+            })
+            
+    return results
+
 def parse_raw_text_application(raw_text: str) -> Dict[str, Any]:
     """
     Parses plain text messages (e.g. from WhatsApp, Telegram, Email, copy-pasted blocks).
@@ -857,6 +1107,7 @@ def parse_raw_text_application(raw_text: str) -> Dict[str, Any]:
     - Numbered lists: '1. Абрамов Антон Александрович, Монтажник'
     - Separated rows: FIO, Position, Birth date, SNILS, Dates, Contacts
     - Multi-line block format: ФИО: ..., Должность: ...
+    - Scanned table OCR output
     """
     lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
     if not lines:
@@ -871,6 +1122,17 @@ def parse_raw_text_application(raw_text: str) -> Dict[str, Any]:
         if 'заявка' in line.lower() or 'договор' in line.lower():
             app_title = line
             break
+            
+    # Check if text looks like a multi-line scanned application/table
+    lines_lower = raw_text.lower()
+    has_table_markers = any(kw in lines_lower for kw in ['просим обучить', 'прошу обучить', 'направляем на обучение', 'в дательном падеже', 'номер/скан', 'кого обучаем'])
+    if has_table_markers or ('снилс' in lines_lower and 'рождения' in lines_lower):
+        scanned_studs = parse_scanned_table_text(raw_text)
+        if len(scanned_studs) >= 2:
+            return {
+                "title": app_title,
+                "students": scanned_studs
+            }
             
     for line in lines:
         if line == app_title:
@@ -1107,24 +1369,30 @@ def parse_incoming_application(
         extracted_title = data.get('title')
         tables = data.get('tables', [])
     elif ext == '.pdf':
-        # If AI Vision requested and available, use AI multimodal on PDF first
+        # If AI Vision requested and available, use AI multimodal on all PDF pages
         if use_ai:
             try:
                 import fitz
                 import uuid
+                import ai_vision
                 doc_pdf = fitz.open(file_path)
                 if len(doc_pdf) > 0:
-                    page = doc_pdf[0]
-                    pix = page.get_pixmap(dpi=200)
-                    temp_img = os.path.join(os.path.dirname(file_path), f"temp_pdf_{uuid.uuid4().hex[:8]}.png")
-                    pix.save(temp_img)
-                    import document_vision
-                    vision_res = document_vision.parse_document_image(temp_img, use_ai=True, openai_api_key=openai_api_key)
-                    if os.path.exists(temp_img):
-                        try:
-                            os.remove(temp_img)
-                        except Exception:
-                            pass
+                    temp_imgs = []
+                    for p_idx in range(len(doc_pdf)):
+                        page = doc_pdf[p_idx]
+                        pix = page.get_pixmap(dpi=200)
+                        temp_img = os.path.join(UPLOAD_DIR, f"temp_pdf_{uuid.uuid4().hex[:8]}_p{p_idx}.png")
+                        pix.save(temp_img)
+                        temp_imgs.append(temp_img)
+                    try:
+                        vision_res = ai_vision.analyze_multi_page_document_with_ai(temp_imgs, api_key=openai_api_key)
+                    finally:
+                        for t_img in temp_imgs:
+                            if os.path.exists(t_img):
+                                try:
+                                    os.remove(t_img)
+                                except Exception:
+                                    pass
                     if vision_res.get('success'):
                         students = []
                         if vision_res.get('students'):
@@ -1163,7 +1431,7 @@ def parse_incoming_application(
                                 "engine": vision_res.get('engine', '')
                             }
             except Exception as e:
-                print(f"PDF AI Vision fallback notice: {e}")
+                print(f"PDF AI Vision notice: {e}")
 
         # Standard PDF scanner (Vector table extraction + letter program extraction)
         data = extract_pdf_data(file_path)
@@ -1315,70 +1583,57 @@ def parse_incoming_application(
             if txt_res.get('students'):
                 return txt_res
 
-    # If PDF had no tables (or 0 students extracted from tables), fallback to text or OCR
-    if ext == '.pdf':
+    # If PDF had no tables (or 0 students extracted from tables), fallback to text or multi-page OCR
+    if ext == '.pdf' and not students_raw:
         if pdf_paragraphs:
             pdf_text = '\n'.join(pdf_paragraphs)
             txt_res = parse_raw_text_application(pdf_text)
             if txt_res.get('students'):
                 return txt_res
 
-        # Fallback for scanned PDF without text
+        # Fallback for scanned PDF without text: multi-page Tesseract OCR with auto-rotation
         try:
-            import fitz
-            import uuid
+            import fitz, io
+            from PIL import Image
+            import document_vision
             doc_pdf = fitz.open(file_path)
-            if len(doc_pdf) > 0:
-                page = doc_pdf[0]
-                pix = page.get_pixmap(dpi=200)
-                temp_img = os.path.join(os.path.dirname(file_path), f"temp_pdf_{uuid.uuid4().hex[:8]}.png")
-                pix.save(temp_img)
-                import document_vision
-                vision_res = document_vision.parse_document_image(temp_img, use_ai=use_ai, openai_api_key=openai_api_key)
-                if os.path.exists(temp_img):
-                    try:
-                        os.remove(temp_img)
-                    except Exception:
-                        pass
-                if vision_res.get('success'):
-                    students = []
-                    if vision_res.get('students'):
-                        for s in vision_res['students']:
-                            prog = s.get('program') or ("; ".join(s.get('programs', [])) if isinstance(s.get('programs'), list) else "")
-                            students.append({
-                                "fio_nom": s.get('fio') or s.get('fio_nom') or "Слушатель",
-                                "fio_dat": s.get('fio_dat') or "",
-                                "position": s.get('position') or "",
-                                "gender": s.get('gender') or "",
-                                "birth_date": s.get('birth_date') or "",
-                                "snils": s.get('snils') or "",
-                                "study_dates": s.get('study_dates') or "",
-                                "contacts": s.get('contacts') or "",
-                                "program": prog,
-                                "engine": vision_res.get('engine', '')
-                            })
-                    elif vision_res.get('fio'):
-                        prog = vision_res.get('program') or ("; ".join(vision_res.get('programs', [])) if isinstance(vision_res.get('programs'), list) else "")
-                        students.append({
-                            "fio_nom": vision_res.get('fio'),
-                            "fio_dat": "",
-                            "position": vision_res.get('position') or "",
-                            "gender": vision_res.get('gender') or "",
-                            "birth_date": vision_res.get('birth_date') or "",
-                            "snils": vision_res.get('snils') or "",
-                            "study_dates": "",
-                            "contacts": "",
-                            "program": prog,
-                            "engine": vision_res.get('engine', '')
-                        })
-                    if students:
-                        return {
-                            "title": vision_res.get('application_title') or extracted_title or f"ЗАЯВКА НА ОБУЧЕНИЕ от {datetime.date.today().strftime('%d.%m.%Y')} г.",
-                            "students": students,
-                            "engine": vision_res.get('engine', '')
-                        }
-        except Exception:
-            pass
+            ocr_pages = []
+            for p_idx in range(len(doc_pdf)):
+                page = doc_pdf[p_idx]
+                pix = page.get_pixmap(dpi=300)
+                img = Image.open(io.BytesIO(pix.tobytes('png')))
+                
+                # Auto-rotation: test 0 deg first. If it already has birth dates, SNILS, patronymics, or training keywords, keep 0 deg!
+                txt0 = document_vision.run_tesseract_on_pil(img)
+                has_id = bool(re.search(r'\b\d{2}\.\d{2}\.\d{4}\b', txt0) or re.search(r'\b\d{3}[\s\-]\d{3}[\s\-]\d{3}', txt0))
+                has_pat = any(is_patronymic(w) for w in txt0.split())
+                has_kw = any(kw in txt0.lower() for kw in ['обучение', 'охрана труда', 'первая помощь', 'помощи', 'директор', 'заявка'])
+                if (has_id or has_pat or has_kw) and len(re.findall(r'[А-Яа-яЁё]{3,}', txt0)) >= 5:
+                    best_txt = txt0
+                else:
+                    best_txt = txt0
+                    best_score = 0
+                    for rot in [90, 180, 270]:
+                        test_img = img.rotate(rot, expand=True)
+                        txt = document_vision.run_tesseract_on_pil(test_img)
+                        score = 0
+                        if re.search(r'\b\d{2}\.\d{2}\.\d{4}\b', txt): score += 10
+                        if re.search(r'\b\d{3}[\s\-]\d{3}[\s\-]\d{3}', txt): score += 10
+                        if any(is_patronymic(w) for w in txt.split()): score += 10
+                        score += len(re.findall(r'[А-Яа-яЁё]{3,}', txt))
+                        if score > best_score:
+                            best_score = score
+                            best_txt = txt
+                ocr_pages.append(best_txt)
+                
+            full_ocr_text = '\n'.join(ocr_pages)
+            if full_ocr_text.strip():
+                txt_res = parse_raw_text_application(full_ocr_text)
+                if txt_res.get('students'):
+                    txt_res['engine'] = 'Локальный Tesseract OCR (многостраничный)'
+                    return txt_res
+        except Exception as e:
+            print(f"Multi-page OCR error: {e}")
 
     return {
         "title": extracted_title or f"ЗАЯВКА НА ОБУЧЕНИЕ от {datetime.date.today().strftime('%d.%m.%Y')} г.",

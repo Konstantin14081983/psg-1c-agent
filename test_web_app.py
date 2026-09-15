@@ -204,7 +204,7 @@ def test_multi_ot_sequential_no_violations():
     assert jdata["audit"]["rule_violations"] == [], f"Expected no violations, got: {jdata['audit']['rule_violations']}"
     # Verify sequential assignment
     dates = [pdata["students"][0]["study_dates"] for pdata in jdata["grouped_data"].values()]
-    assert dates == ['01.09.2026 - 05.09.2026', '06.09.2026 - 10.09.2026', '11.09.2026 - 15.09.2026']
+    assert dates == ['01.09.2026 - 02.09.2026', '03.09.2026 - 04.09.2026', '07.09.2026 - 08.09.2026']
     print("✓ test_multi_ot_sequential_no_violations passed")
 
 def test_real_snils_photo_ocr():
