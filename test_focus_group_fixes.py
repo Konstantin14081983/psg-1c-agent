@@ -366,6 +366,38 @@ class TestFocusGroupFixes(unittest.TestCase):
         if os.path.exists(xlsx_path):
             os.remove(xlsx_path)
 
+    def test_position_double_letter_preservation(self):
+        """
+        Verify that legitimate double letters in job positions (e.g. 'производственных', 'электрооборудования')
+        are preserved without erroneous auto-correction or warning.
+        Also verify that true orthographic errors with missing double letters are corrected.
+        """
+        import training_rules
+
+        # 1. Legitimate double letters must NOT be altered
+        pos1 = "Уборщик производственных помещений"
+        c1, w1, err1 = training_rules.normalize_position(pos1)
+        self.assertEqual(c1, pos1)
+        self.assertIsNone(w1)
+        self.assertFalse(err1)
+
+        pos2 = "Электромонтер по ремонту и обслуживанию электрооборудования"
+        c2, w2, err2 = training_rules.normalize_position(pos2)
+        self.assertEqual(c2, pos2)
+        self.assertIsNone(w2)
+        self.assertFalse(err2)
+
+        # 2. Misspelled missing double letters must be corrected
+        pos1_bad = "Уборщик производственых помещений"
+        c1_fix, w1_fix, err1_fix = training_rules.normalize_position(pos1_bad)
+        self.assertEqual(c1_fix, "Уборщик производственных помещений")
+        self.assertTrue(err1_fix)
+
+        pos2_bad = "Электромонтер по ремонту и обслуживанию электроборудования"
+        c2_fix, w2_fix, err2_fix = training_rules.normalize_position(pos2_bad)
+        self.assertEqual(c2_fix, "Электромонтер по ремонту и обслуживанию электрооборудования")
+        self.assertTrue(err2_fix)
+
 if __name__ == "__main__":
     unittest.main()
 

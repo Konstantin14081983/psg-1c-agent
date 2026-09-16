@@ -68,6 +68,16 @@ POSITION_TYPOS = [
     (r'\bинжинер\b', 'инженер'),
     (r'\bинжинерр\b', 'инженер'),
     (r'\bподсобный рабочии\b', 'подсобный рабочий'),
+    (r'\bбетоннщик\b', 'бетонщик'),
+    (r'\bплоттник\b', 'плотник'),
+    # Fix true orthographic errors (missing double letters in legitimate Russian words)
+    (r'\bпроизводствен([ыоае][а-я]*)\b', r'производственн\1'),
+    (r'\bэлектроборудован', 'электрооборудован'),
+    (r'\bгазоборудован', 'газооборудован'),
+    (r'\bответствен([ыоае][а-я]*)\b', r'ответственн\1'),
+    (r'\bквалификацион([ыоае][а-я]*)\b', r'квалификационн\1'),
+    (r'\bакумулятор', 'аккумулятор'),
+    (r'\bапаратчик', 'аппаратчик'),
 ]
 
 def normalize_position(position_raw: Optional[str]) -> Tuple[str, Optional[str], bool]:
@@ -75,7 +85,7 @@ def normalize_position(position_raw: Optional[str]) -> Tuple[str, Optional[str],
     Normalizes a job position:
     - Strips garbage prefixes (должность:, профессия:) and quotes
     - Capitalizes first letter
-    - Corrects common typos and letter doubling (e.g. 'електрогазосварщик', 'сваарщик')
+    - Corrects specific orthographic errors and typos without stripping legitimate double letters
     - Expands standard industry abbreviations (м/к, пом., э/г, и т.д.)
     Returns (cleaned_position, warning_message, had_issues).
     """
@@ -94,7 +104,7 @@ def normalize_position(position_raw: Optional[str]) -> Tuple[str, Optional[str],
     had_corrections = False
     had_typos = False
     
-    # Check typos
+    # Check typos and orthographic corrections
     for pattern, replacement in POSITION_TYPOS:
         if re.search(pattern, text, flags=re.IGNORECASE):
             text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
@@ -105,24 +115,6 @@ def normalize_position(position_raw: Optional[str]) -> Tuple[str, Optional[str],
         if re.search(pattern, text, flags=re.IGNORECASE):
             text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
             had_corrections = True
-            
-    # Deduplicate tripled letters
-    text_dedup = re.sub(r'([а-яА-ЯёЁa-zA-Z])\1{2,}', r'\1', text)
-    # Deduplicate accidental doubled vowels (e.g. сваарщик -> сварщик, водиитель -> водитель)
-    text_dedup = re.sub(r'([аиоуыэюя])\1+', r'\1', text_dedup, flags=re.IGNORECASE)
-    # Deduplicate initial doubled consonants (e.g. Вводитель -> Водитель)
-    text_dedup = re.sub(r'\b([бвгджзклмнпрстфхцчшщ])\1', r'\1', text_dedup, flags=re.IGNORECASE)
-    # Deduplicate non-legitimate double consonants in position words
-    legit_pos_roots = ('кассир', 'программ', 'ассист', 'иллюстр', 'коррект', 'пресс', 'стюардесс', 'аккумул', 'компресс', 'аппарат', 'массаж', 'групп', 'колл', 'тонн', 'баллон')
-    def _sub_pos_cons(m):
-        w = m.group(0)
-        if any(r in w.lower() for r in legit_pos_roots):
-            return w
-        return re.sub(r'([бвгджзклмнпрстфхцчшщ])\1+', r'\1', w, flags=re.IGNORECASE)
-    text_dedup = re.sub(r'[а-яА-ЯёЁa-zA-Z\-]+', _sub_pos_cons, text_dedup)
-    if text_dedup != text:
-        text = text_dedup
-        had_typos = True
 
     # Capitalize the first letter properly
     if text:
