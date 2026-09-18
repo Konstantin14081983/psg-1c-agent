@@ -398,6 +398,83 @@ class TestFocusGroupFixes(unittest.TestCase):
         self.assertEqual(c2_fix, "Электромонтер по ремонту и обслуживанию электрооборудования")
         self.assertTrue(err2_fix)
 
+    def test_word_table_subheaders_and_empty_sections(self):
+        """
+        Test that Word documents with merged table subheaders (e.g. 'ЗАЯВКА НА ОБУЧЕНИЕ.docx'):
+        1. Properly assign students to their respective table section subheader.
+        2. Do NOT convert program subheaders into fake student records.
+        3. Completely ignore empty template sections (e.g. empty Labor Protection section with 0 students).
+        4. Correctly map the crane operator program up to canonical 7th grade.
+        5. In AI mode, do not let common_params or trailing empty sections overwrite section programs.
+        """
+        docx_path = "Файлы и ошибки/ЗАЯВКА НА ОБУЧЕНИЕ.docx"
+        if not os.path.exists(docx_path):
+            self.skipTest("Focus group docx not found on disk")
+
+        # 1. Standard mode (no AI)
+        res = doc_reader.parse_incoming_application(docx_path, use_ai=False)
+        students = res.get("students", [])
+        self.assertEqual(len(students), 2, "Must extract exactly 2 students, no fake subheader students")
+        
+        fios = [s["fio_nom"] for s in students]
+        self.assertTrue(any("Муратов" in f for f in fios))
+        self.assertTrue(any("Хабибуллин" in f for f in fios))
+        for s in students:
+            self.assertIn("Машинист крана автомобильного", s["program"])
+            self.assertNotIn("Охрана труда", s["program"])
+
+        # End-to-end 1C pipeline
+        out = psg_agent.process_application(input_file=docx_path, use_ai=False)
+        self.assertTrue(out["success"])
+        self.assertEqual(out["unique_students"], 2)
+        self.assertEqual(out["total_enrollments"], 2)
+        
+        # Verify group canonical program is Crane Operator 7 разряд
+        groups = list(out["grouped_data"].keys())
+        self.assertEqual(len(groups), 1, "Must have exactly 1 group (crane operator), empty OT group must not be created")
+        self.assertIn("7 разряд", groups[0])
+        self.assertIn("Машинист крана", groups[0])
+
+        # Clean up output files
+        if out.get("output_file") and os.path.exists(out["output_file"]):
+            os.remove(out["output_file"])
+        if out.get("xlsx_file") and os.path.exists(out["xlsx_file"]):
+            os.remove(out["xlsx_file"])
+
+        # 2. AI mode: mock AI returning students with trailing empty program in common_params
+        mock_ai_resp = {
+            "success": True,
+            "students": [
+                {
+                    "fio": "Муратов Марат Мударисович",
+                    "position": "Машинист крана автомобильного",
+                    "birth_date": "02.09.1981",
+                    "gender": "М",
+                    "snils": "075-249-823 89",
+                    "program": None
+                },
+                {
+                    "fio": "Хабибуллин Рустем Фанильевич",
+                    "position": "Машинист крана автомобильного",
+                    "birth_date": "22.12.1978",
+                    "gender": "М",
+                    "snils": "078-404-337 73",
+                    "program": None
+                }
+            ],
+            "common_params": {
+                "program": "Программа обучения безопасным методам и приемам выполнения работ... (Охрана труда)"
+            },
+            "engine": "OpenAI (GPT-4o-mini)"
+        }
+        with patch("ai_vision.analyze_text_message_with_ai", return_value=mock_ai_resp):
+            res_ai = doc_reader.parse_incoming_application(docx_path, use_ai=True)
+            self.assertEqual(len(res_ai.get("students", [])), 2)
+            for s in res_ai["students"]:
+                self.assertIn("Машинист крана автомобильного", s["program"])
+                self.assertNotIn("Охрана труда", s["program"])
+
 if __name__ == "__main__":
     unittest.main()
+
 

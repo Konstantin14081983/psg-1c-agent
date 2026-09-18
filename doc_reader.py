@@ -1295,6 +1295,124 @@ def reconcile_student_records(file_students: List[Dict[str, Any]], text_students
     return merged
 
 
+def extract_students_from_tables(
+    tables: List[List[List[Any]]],
+    letter_progs: Optional[List[str]] = None
+) -> List[Dict[str, Any]]:
+    """
+    Extracts student records from structured table grids (Word, Excel, PDF vector tables).
+    Properly handles table section subheaders (merged full-width rows), guards against
+    program titles leaking into FIO columns, and maps students to their respective section program.
+    """
+    students_raw = []
+    
+    for tbl in tables:
+        header_idx = -1
+        col_map = {}
+        for r_idx, row in enumerate(tbl):
+            non_empty_cells = [c for c in row if str(c).strip()]
+            if len(non_empty_cells) < 2:
+                continue
+            row_str = ' '.join(str(c) for c in row).lower()
+            if any(kw in row_str for kw in ['фио', 'ф.и.о', 'фамили', 'слушател', 'сотрудник', 'работник', 'обучающ']) or ('снилс' in row_str and ('должност' in row_str or 'рожд' in row_str or 'професси' in row_str)):
+                cand_map = identify_columns(row)
+                if 'fio_nom' in cand_map and (len(cand_map) >= 2 or any(k in row_str for k in ['фио', 'фамил'])):
+                    header_idx = r_idx
+                    col_map = cand_map
+                    break
+                
+        if header_idx == -1:
+            continue
+            
+        current_program = None
+        
+        for r_idx in range(header_idx + 1, len(tbl)):
+            row = tbl[r_idx]
+            non_empty = [c for c in row if str(c).strip()]
+            if not non_empty:
+                continue
+                
+            first_cell = str(row[0]).strip().lower()
+            if any(term in first_cell for term in ['директор', 'руководител', 'м.п.', 'согласие', 'подпись', 'исполнитель', 'оплату гарантируем', 'главный инженер']):
+                break
+                
+            unique_non_empty = list(dict.fromkeys([str(c).strip() for c in non_empty]))
+            
+            # Merged subheader / section banner across row
+            if len(unique_non_empty) == 1 and not unique_non_empty[0].isdigit():
+                cand_prog = unique_non_empty[0].strip()
+                if any(kw in cand_prog.lower() for kw in [
+                    'программ', 'обучени', 'подготовк', 'переподготовк', 'квалификац',
+                    'инструктаж', 'безопасн', 'охрана труд', 'разряд', 'птм', 'пожарн',
+                    'электробезопасн', 'допуск', 'аттестац', 'професси'
+                ]):
+                    current_program = cand_prog
+                elif len(non_empty) == 1:
+                    current_program = cand_prog
+                continue
+            elif len(unique_non_empty) <= 2:
+                joined_u = ' '.join(unique_non_empty).lower()
+                if any(kw in joined_u for kw in [
+                    'программ', 'обучени', 'подготовк', 'переподготовк', 'квалификац',
+                    'инструктаж', 'безопасн', 'охрана труд'
+                ]):
+                    text_cells = [c for c in unique_non_empty if not c.isdigit()]
+                    current_program = ' '.join(text_cells).strip() if text_cells else ' '.join(unique_non_empty).strip()
+                    continue
+                
+            fio_val = str(row[col_map['fio_nom']]).strip() if 'fio_nom' in col_map and col_map['fio_nom'] < len(row) else ''
+            if not fio_val:
+                continue
+                
+            if any(term in fio_val.lower() for term in ['фио', 'ф.и.о', 'фамилия', 'подпись', 'слушатель', 'сотрудник', 'директор', 'главный инженер', 'исполнитель']):
+                continue
+
+            position_val = str(row[col_map['position']]).strip() if 'position' in col_map and col_map['position'] < len(row) else ''
+            fio_lower = fio_val.lower()
+
+            # Defensive guard: if fio_val is actually a program header or identical to long position
+            if any(fio_lower.startswith(p) for p in [
+                'программа', 'профессиональная подготовка', 'повышение квалификации',
+                'профессиональная переподготовка', 'обучение безопасным', 'обучение по',
+                'инструктаж', 'проверка знаний', 'аттестация', 'курс'
+            ]) or any(kw in fio_lower for kw in ['правила по охране труда', 'безопасным методам и приемам']):
+                current_program = fio_val
+                continue
+            if position_val and fio_val == position_val and len(fio_val) > 10:
+                if any(kw in fio_lower for kw in ['программ', 'обучен', 'подготовк', 'квалификац', 'инструктаж', 'безопасн', 'охрана труд']):
+                    current_program = fio_val
+                continue
+                
+            fio_dat_val = str(row[col_map['fio_dat']]).strip() if 'fio_dat' in col_map and col_map['fio_dat'] < len(row) else ''
+            gender_val = str(row[col_map['gender']]).strip() if 'gender' in col_map and col_map['gender'] < len(row) else ''
+            birth_date_val = str(row[col_map['birth_date']]).strip() if 'birth_date' in col_map and col_map['birth_date'] < len(row) else ''
+            snils_val = str(row[col_map['snils']]).strip() if 'snils' in col_map and col_map['snils'] < len(row) else ''
+            study_dates_val = str(row[col_map['study_dates']]).strip() if 'study_dates' in col_map and col_map['study_dates'] < len(row) else ''
+            contacts_val = str(row[col_map['contacts']]).strip() if 'contacts' in col_map and col_map['contacts'] < len(row) else ''
+            
+            prog_val = None
+            if 'program' in col_map and col_map['program'] < len(row) and str(row[col_map['program']]).strip():
+                prog_val = str(row[col_map['program']]).strip()
+            elif current_program:
+                prog_val = current_program
+            elif letter_progs:
+                prog_val = "; ".join(letter_progs)
+                
+            students_raw.append({
+                "fio_nom": fio_val,
+                "fio_dat": fio_dat_val,
+                "position": position_val,
+                "gender": gender_val,
+                "birth_date": birth_date_val,
+                "snils": snils_val,
+                "study_dates": study_dates_val,
+                "contacts": contacts_val,
+                "program": prog_val
+            })
+            
+    return students_raw
+
+
 def parse_incoming_application(
     file_path: str,
     use_ai: bool = False,
@@ -1328,22 +1446,55 @@ def parse_incoming_application(
         if use_ai:
             try:
                 import ai_vision
+                tbl_students = extract_students_from_tables(tables, letter_progs)
                 doc_text_parts = []
                 if docx_paragraphs:
                     doc_text_parts.append('\n'.join(docx_paragraphs))
                 for t in tables:
-                    for row in t:
+                    for r_idx, row in enumerate(t):
                         non_empty_cells = [str(c).strip() for c in row if str(c).strip()]
-                        if non_empty_cells:
-                            doc_text_parts.append(' | '.join(non_empty_cells))
+                        if not non_empty_cells:
+                            continue
+                        unique_cells = list(dict.fromkeys(non_empty_cells))
+                        if len(unique_cells) == 1 and not unique_cells[0].isdigit():
+                            # Check if any subsequent rows in this table have data
+                            has_data_below = False
+                            for next_r in range(r_idx + 1, len(t)):
+                                next_row = t[next_r]
+                                next_non_empty = [str(c).strip() for c in next_row if str(c).strip()]
+                                next_unique = list(dict.fromkeys(next_non_empty))
+                                if len(next_unique) == 1 and not next_unique[0].isdigit():
+                                    break  # Next section started without data in this one
+                                if len(next_unique) >= 2:
+                                    has_data_below = True
+                                    break
+                            if not has_data_below:
+                                # Empty template section with 0 students, omit from AI text
+                                continue
+                            doc_text_parts.append(f"\n[РАЗДЕЛ / ПРОГРАММА В ТАБЛИЦЕ]: {unique_cells[0]}")
+                        else:
+                            doc_text_parts.append(' | '.join(unique_cells))
                 raw_doc_text = '\n'.join(doc_text_parts).strip()
                 if raw_doc_text:
                     ai_text_res = ai_vision.analyze_text_message_with_ai(raw_doc_text, api_key=openai_api_key)
                     if ai_text_res.get("success") and ai_text_res.get("students"):
                         ai_students = []
                         common_prog = ai_text_res.get("common_params", {}).get("program") or ("; ".join(letter_progs) if letter_progs else "")
+
+                        tbl_prog_map = {}
+                        if tbl_students:
+                            for ts in tbl_students:
+                                k = ' '.join(ts.get('fio_nom', '').split()[:2]).lower()
+                                if k and ts.get('program'):
+                                    tbl_prog_map[k] = ts.get('program')
+
                         for s in ai_text_res["students"]:
-                            prog = s.get("program") or common_prog
+                            prog = s.get("program")
+                            s_key = ' '.join((s.get('fio') or s.get('fio_nom') or '').split()[:2]).lower()
+                            if (not prog or prog == common_prog) and s_key in tbl_prog_map:
+                                prog = tbl_prog_map[s_key]
+                            if not prog:
+                                prog = common_prog
                             ai_students.append({
                                 "fio_nom": s.get("fio") or s.get("fio_nom") or "Слушатель",
                                 "fio_dat": s.get("fio_dat") or "",
@@ -1495,79 +1646,7 @@ def parse_incoming_application(
                 return parse_raw_text_application(f.read())
         tables = []
         
-    students_raw = []
-    
-    for tbl in tables:
-        header_idx = -1
-        col_map = {}
-        for r_idx, row in enumerate(tbl):
-            non_empty_cells = [c for c in row if str(c).strip()]
-            if len(non_empty_cells) < 2:
-                continue
-            row_str = ' '.join(str(c) for c in row).lower()
-            if any(kw in row_str for kw in ['фио', 'ф.и.о', 'фамили', 'слушател', 'сотрудник', 'работник', 'обучающ']) or ('снилс' in row_str and ('должност' in row_str or 'рожд' in row_str or 'професси' in row_str)):
-                cand_map = identify_columns(row)
-                if 'fio_nom' in cand_map and (len(cand_map) >= 2 or any(k in row_str for k in ['фио', 'фамил'])):
-                    header_idx = r_idx
-                    col_map = cand_map
-                    break
-                
-        if header_idx == -1:
-            continue
-            
-        current_program = None
-        
-        for r_idx in range(header_idx + 1, len(tbl)):
-            row = tbl[r_idx]
-            non_empty = [c for c in row if str(c).strip()]
-            if not non_empty:
-                continue
-                
-            first_cell = str(row[0]).strip().lower()
-            if any(term in first_cell for term in ['директор', 'руководител', 'м.п.', 'согласие', 'подпись', 'исполнитель', 'оплату гарантируем', 'главный инженер']):
-                break
-                
-            if len(non_empty) == 1 and not str(row[0]).strip().isdigit():
-                current_program = non_empty[0].strip()
-                continue
-            elif len(non_empty) <= 2 and ('программа' in ' '.join(str(c) for c in non_empty).lower() or 'обучение' in ' '.join(str(c) for c in non_empty).lower()):
-                current_program = ' '.join(str(c) for c in non_empty).strip()
-                continue
-                
-            fio_val = str(row[col_map['fio_nom']]).strip() if 'fio_nom' in col_map and col_map['fio_nom'] < len(row) else ''
-            if not fio_val:
-                continue
-                
-            if any(term in fio_val.lower() for term in ['фио', 'ф.и.о', 'фамилия', 'подпись', 'слушатель', 'сотрудник', 'директор', 'главный инженер', 'исполнитель']):
-                continue
-                
-            fio_dat_val = str(row[col_map['fio_dat']]).strip() if 'fio_dat' in col_map and col_map['fio_dat'] < len(row) else ''
-            position_val = str(row[col_map['position']]).strip() if 'position' in col_map and col_map['position'] < len(row) else ''
-            gender_val = str(row[col_map['gender']]).strip() if 'gender' in col_map and col_map['gender'] < len(row) else ''
-            birth_date_val = str(row[col_map['birth_date']]).strip() if 'birth_date' in col_map and col_map['birth_date'] < len(row) else ''
-            snils_val = str(row[col_map['snils']]).strip() if 'snils' in col_map and col_map['snils'] < len(row) else ''
-            study_dates_val = str(row[col_map['study_dates']]).strip() if 'study_dates' in col_map and col_map['study_dates'] < len(row) else ''
-            contacts_val = str(row[col_map['contacts']]).strip() if 'contacts' in col_map and col_map['contacts'] < len(row) else ''
-            
-            prog_val = None
-            if 'program' in col_map and col_map['program'] < len(row) and str(row[col_map['program']]).strip():
-                prog_val = str(row[col_map['program']]).strip()
-            elif current_program:
-                prog_val = current_program
-            elif letter_progs:
-                prog_val = "; ".join(letter_progs)
-                
-            students_raw.append({
-                "fio_nom": fio_val,
-                "fio_dat": fio_dat_val,
-                "position": position_val,
-                "gender": gender_val,
-                "birth_date": birth_date_val,
-                "snils": snils_val,
-                "study_dates": study_dates_val,
-                "contacts": contacts_val,
-                "program": prog_val
-            })
+    students_raw = extract_students_from_tables(tables, letter_progs)
             
     if students_raw:
         return {
