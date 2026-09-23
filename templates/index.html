@@ -1475,7 +1475,7 @@
                   <option value="">Автоопределение по названию программы</option>
                   <option value="ОТ (Охрана труда)">Охрана труда (А, Б, В, СИЗ, ПП) — строго последовательно</option>
                   <option value="Рабочие профессии">Рабочие профессии (120-280 ч, окончание <= 3 дней назад)</option>
-                  <option value="ПК / ДПП">ПК / ДПП (окончание <= 30 дней назад, экология 112ч, пожарка)</option>
+                  <option value="ПК / ДПП">ПК / ДПП — часы по справочнику</option>
                   <option value="Высота и ОЗП">Высота и ОЗП (24 ч, группы 1, 2, 3 без пересечения)</option>
                   <option value="Допуски и проверка знаний">Допуски и ежегодная проверка знаний (свободные даты)</option>
                 </select>
@@ -1483,25 +1483,13 @@
 
               <div class="form-group">
                 <label class="form-label" for="overrideProgram">Программы обучения (можно выбрать несколько или ввести свои):</label>
-                <div class="prog-chips-grid">
-                  <label class="prog-chip-label"><input type="checkbox" name="progChip" value="ОТ (Б+СИЗ+ПП)" onchange="updateSelectedPrograms()"> 🛡️ Охрана труда (Б+СИЗ+ПП)</label>
-                  <label class="prog-chip-label"><input type="checkbox" name="progChip" value="Высота 1 группа" onchange="updateSelectedPrograms()"> 🧗 Высота 1 группа</label>
-                  <label class="prog-chip-label"><input type="checkbox" name="progChip" value="Высота 2 группа" onchange="updateSelectedPrograms()"> 🧗 Высота 2 группа</label>
-                  <label class="prog-chip-label"><input type="checkbox" name="progChip" value="ДПП Специалист по пожарной профилактике" onchange="updateSelectedPrograms()"> 🔥 Пожарная безопасность</label>
-                  <label class="prog-chip-label"><input type="checkbox" name="progChip" value="Обучение по программе 'Нормы и правила работы в электроустановках'" onchange="updateSelectedPrograms()"> ⚡ Электробезопасность</label>
-                  <label class="prog-chip-label"><input type="checkbox" name="progChip" value="Ежегодные занятия с водителями автотранспортных средств" onchange="updateSelectedPrograms()"> 🚗 Водители (БДД 20ч)</label>
-                </div>
+                <label class="form-label" for="catalogSearch">Поиск в справочнике центра</label>
+                <input class="form-input" id="catalogSearch" placeholder="Название программы или профессии" autocomplete="off">
+                <div id="catalogResults" role="list" aria-live="polite" style="max-height:220px;overflow:auto"></div>
+                <div id="selectedCatalogPrograms" aria-live="polite"></div>
+                <small>Выбранные программы заменят программы из заявки. Для свободного текста разделяйте программы точкой с запятой.</small>
                 <input type="text" class="form-input" id="overrideProgram" list="programList" placeholder="Укажите программу или несколько через точку с запятой ';'">
-                <datalist id="programList">
-                  <option value="ОТ (Б+СИЗ+ПП)">
-                  <option value="Программа обучения безопасным методам и приемам выполнения работ на высоте, 1 группа">
-                  <option value="Профессиональная подготовка по профессии Машинист крана автомобильного 8 разряд">
-                  <option value="Профессиональная подготовка по профессии Стропальщик">
-                  <option value="Ежегодные занятия с водителями автотранспортных средств">
-                  <option value="Обучение по программе 'Нормы и правила работы в электроустановках'">
-                  <option value="ДПП Специалист по пожарной профилактике">
-                  <option value="ПК Обеспечение экологической безопасности при работах в области обращения с опасными отходами I-IV класс опасности">
-                </datalist>
+                <datalist id="programList"></datalist>
               </div>
 
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; align-items: start; margin-bottom: 0.5rem;">
@@ -1510,7 +1498,9 @@
                     <span>Сроки обучения:</span>
                     <span style="color: var(--psg-red); font-size: 0.72rem; cursor: pointer; text-decoration: underline;" onclick="autoFillDatesForCategory()">⚡ Авто-заполнение</span>
                   </div>
-                  <input type="text" class="form-input" id="overrideDates" placeholder="ДД.ММ.ГГГГ - ДД.ММ.ГГГГ">
+                  <input type="text" class="form-input" id="overrideDates" placeholder="ДД.ММ.ГГГГ или интервал">
+                  <label class="form-label" for="dateRole" style="margin-top:8px">Если указана одна дата:</label>
+                  <select id="dateRole" class="form-input"><option value="auto">Уточнить значение даты</option><option value="start">Начало обучения</option><option value="end">Окончание обучения</option></select>
                 </div>
                 
                 <div class="form-group" style="margin-bottom: 0;">
@@ -1523,12 +1513,8 @@
 
               <!-- Date preset buttons strictly horizontal one after another -->
               <div class="form-group" style="margin-bottom: 1rem;">
-                <div class="date-presets" style="display: flex; flex-direction: row; flex-wrap: nowrap; gap: 0.4rem; width: 100%;">
-                  <button type="button" class="preset-chip" style="flex: 1 1 0; text-align: center; white-space: nowrap; padding: 0.4rem 0.25rem; font-size: 0.72rem;" onclick="setDatePreset('today_14')">Сегодня +14д</button>
-                  <button type="button" class="preset-chip" style="flex: 1 1 0; text-align: center; white-space: nowrap; padding: 0.4rem 0.25rem; font-size: 0.72rem;" onclick="setDatePreset('worker_3d')">Рабочие (за 2д)</button>
-                  <button type="button" class="preset-chip" style="flex: 1 1 0; text-align: center; white-space: nowrap; padding: 0.4rem 0.25rem; font-size: 0.72rem;" onclick="setDatePreset('pk_15d')">ПК/ДПП (за 15д)</button>
-                  <button type="button" class="preset-chip" style="flex: 1 1 0; text-align: center; white-space: nowrap; padding: 0.4rem 0.25rem; font-size: 0.72rem;" onclick="setDatePreset('ot_5d')">ОТ (+5д)</button>
-                </div>
+                <button type="button" class="preset-chip" style="padding:8px 12px;margin-bottom:8px" onclick="setDatePreset()">Начать сегодня</button>
+                <small>Сроки рассчитываются по часам программы и производственному календарю РФ. Высота и ОЗП — последовательно.</small>
               </div>
 
               <div class="form-group">
@@ -1707,7 +1693,7 @@
 
   <footer>
     <div>ЧОУ ДПО ЦЕНТР «ПСГ» • Автоматизированное рабочее место методиста 1С</div>
-    <div style="margin-top: 0.25rem; font-size: 0.7rem; color: var(--text-faint);">Соответствие Приказу Минтруда № 2464 и стандартам ФИС ФРДО</div>
+    <div style="margin-top: 0.25rem; font-size: 0.7rem; color: var(--text-faint);">Расчёт по справочнику центра и производственному календарю РФ</div>
   </footer>
 
   <script>
@@ -1970,51 +1956,13 @@
       return `${day}.${month}.${year}`;
     }
 
-    function setDatePreset(type) {
-      const today = new Date();
-      let startD = new Date();
-      let endD = new Date();
-
-      if (type === 'today_14') {
-        endD.setDate(today.getDate() + 14);
-      } else if (type === 'worker_3d') {
-        endD.setDate(today.getDate() - 2);
-        startD.setDate(endD.getDate() - 21);
-      } else if (type === 'pk_15d') {
-        endD.setDate(today.getDate() - 15);
-        startD.setDate(endD.getDate() - 10);
-      } else if (type === 'ot_5d') {
-        endD.setDate(today.getDate() + 5);
-      }
-      document.getElementById('overrideDates').value = `${formatDate(startD)} - ${formatDate(endD)}`;
+    function setDatePreset() {
+      document.getElementById('overrideDates').value = formatDate(new Date());
+      document.getElementById('dateRole').value = 'start';
       updateActiveOverridesIndicator();
     }
-
-    function handleCategoryChange(cat) {
-      if (cat === 'Рабочие профессии') {
-        setDatePreset('worker_3d');
-      } else if (cat === 'ПК / ДПП') {
-        setDatePreset('pk_15d');
-      } else if (cat === 'ОТ (Охрана труда)') {
-        setDatePreset('ot_5d');
-      } else if (cat === 'Высота и ОЗП') {
-        const today = new Date();
-        const endD = new Date();
-        endD.setDate(today.getDate() + 3);
-        document.getElementById('overrideDates').value = `${formatDate(today)} - ${formatDate(endD)}`;
-      }
-      updateActiveOverridesIndicator();
-    }
-
-    function autoFillDatesForCategory() {
-      const cat = document.getElementById('overrideCategory').value;
-      if (cat) {
-        handleCategoryChange(cat);
-      } else {
-        setDatePreset('today_14');
-      }
-      toast.success('Сроки обучения рассчитаны автоматически');
-    }
+    function handleCategoryChange() { updateActiveOverridesIndicator(); }
+    function autoFillDatesForCategory() { setDatePreset(); }
 
     function updateActiveOverridesIndicator() {
       const chip = document.getElementById('activeOverridesChip');
@@ -2033,6 +1981,8 @@
 
     let lastResetManualParamsTime = 0;
     function resetManualParams(e) {
+      selectedCatalog.clear(); Object.keys(catalogHours).forEach(k => delete catalogHours[k]);
+      renderCatalogSelection(); document.getElementById('dateRole').value = 'auto';
       if (e && e.preventDefault) e.preventDefault();
       const now = Date.now();
       if (now - lastResetManualParamsTime < 600) {
@@ -2302,7 +2252,7 @@
 
       const stepTimer2 = setTimeout(() => {
         stepperProgress.style.width = '80%';
-        stepperText.textContent = '3/4. Проверка регламентов Минтруда и расчет дат...';
+        stepperText.textContent = '3/4. Сопоставление программ и расчёт учебных дней...';
       }, 1400);
 
       const formData = new FormData();
@@ -2318,6 +2268,8 @@
       formData.append('category', document.getElementById('overrideCategory').value);
       formData.append('program', document.getElementById('overrideProgram').value);
       formData.append('study_dates', document.getElementById('overrideDates').value);
+      formData.append('date_role', document.getElementById('dateRole').value);
+      formData.append('hours_overrides', JSON.stringify(catalogHours));
       formData.append('position', document.getElementById('overridePosition').value);
       formData.append('has_diploma', document.getElementById('docDiploma').checked);
       formData.append('has_photo', document.getElementById('docPhoto').checked);
@@ -2391,6 +2343,7 @@
         return;
       }
 
+      renderScheduleDetails(data);
       currentProcessedData = data;
       currentOutputFilename = data.output_filename;
       document.getElementById('initialPlaceholder').style.display = 'none';
@@ -2651,6 +2604,67 @@
         gsap.from('#rightColumn', { opacity: 0, y: 16, duration: 0.45, delay: 0.1, ease: 'power2.out' });
       }
     });
+
+    const selectedCatalog = new Map();
+    const catalogHours = {};
+    let catalogRequest = 0;
+    let catalogTimer;
+    document.getElementById('catalogSearch').addEventListener('input', () => {
+      clearTimeout(catalogTimer); catalogTimer = setTimeout(searchCatalog, 250);
+    });
+    async function searchCatalog() {
+      const ticket = ++catalogRequest;
+      const target = document.getElementById('catalogResults');
+      try {
+        const response = await fetch('/api/programs?q=' + encodeURIComponent(document.getElementById('catalogSearch').value));
+        if (!response.ok) throw new Error();
+        const data = await response.json();
+        if (ticket !== catalogRequest) return;
+        target.replaceChildren();
+        const summary = document.createElement('small');
+        summary.textContent = `Найдено: ${data.total}. Показано: ${data.programs.length}.`;
+        target.append(summary);
+        data.programs.forEach(p => {
+          const button = document.createElement('button'); button.type = 'button'; button.className = 'form-input';
+          button.style.textAlign = 'left';
+          button.textContent = `${p.name} · ${p.hours.length ? p.hours.join('/') + ' ч' : 'часы требуют уточнения'}`;
+          button.addEventListener('click', () => {
+            selectedCatalog.set(p.id, p); renderCatalogSelection();
+            document.getElementById('overrideProgram').value = Array.from(selectedCatalog.values()).map(x => x.name).join('; ');
+            updateActiveOverridesIndicator();
+          }); target.append(button);
+        });
+      } catch (_) { target.textContent = 'Справочник не загружен. Повторите поиск.'; }
+    }
+    function renderCatalogSelection() {
+      const target = document.getElementById('selectedCatalogPrograms'); target.replaceChildren();
+      selectedCatalog.forEach(p => {
+        const row = document.createElement('div'); row.style.cssText='padding:10px 0;border-bottom:1px solid #e2e8f0'; const label = document.createElement('label'); label.className='form-label';
+        label.textContent = p.name + ' — часы: ';
+        const hours = document.createElement(p.hours.length ? 'select' : 'input');
+        hours.setAttribute('aria-label', 'Часы: ' + p.name); hours.className='form-input'; hours.style.cssText='width:120px;display:inline-block;margin:6px';
+        if (p.hours.length) p.hours.forEach(n => { const opt = document.createElement('option'); opt.value=n; opt.textContent=n; hours.append(opt); });
+        else { hours.type='number'; hours.min=1; hours.max=2000; hours.placeholder='Уточните часы'; }
+        hours.value = catalogHours[p.id] || p.hours[0] || '';
+        hours.addEventListener('change', () => { if (hours.value) catalogHours[p.id]=Number(hours.value); else delete catalogHours[p.id]; });
+        label.append(hours); row.append(label);
+        const remove = document.createElement('button'); remove.type='button'; remove.textContent='Убрать'; remove.className='preset-chip';
+        remove.addEventListener('click', () => { selectedCatalog.delete(p.id); delete catalogHours[p.id]; renderCatalogSelection(); document.getElementById('overrideProgram').value=Array.from(selectedCatalog.values()).map(x=>x.name).join('; '); });
+        row.append(remove); target.append(row);
+      });
+    }
+    function renderScheduleDetails(data) {
+      let target = document.getElementById('scheduleDetails');
+      if (!target) { target = document.createElement('div'); target.id='scheduleDetails'; document.getElementById('resultsContent').prepend(target); }
+      target.replaceChildren();
+      if (data.requires_review) { const notice = document.createElement('strong'); notice.textContent='Черновик: перед использованием уточните программы или сроки, отмеченные ниже.'; target.append(notice); }
+      Object.entries(data.grouped_data || {}).forEach(([name,p]) => {
+        const row = document.createElement('p');
+        row.textContent = `${name}: ${p.hours || '?'} ч, ${p.days || '?'} рабочих дн. Источник: ${p.source || 'требуется уточнение'}. ${p.schedule_warning || p.warning || ''}`;
+        target.append(row);
+      });
+    }
+
   </script>
 </body>
 </html>

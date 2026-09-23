@@ -1,0 +1,13 @@
+{
+  "sample": "№68",
+  "students": 2,
+  "enrollments": 4,
+  "dates": [
+    "24.08.2026 - 26.08.2026",
+    "27.08.2026 - 31.08.2026"
+  ],
+  "docx_created": true,
+  "xlsx_created": true,
+  "requires_review": false,
+  "external_ai_used": false
+}

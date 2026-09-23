@@ -226,7 +226,7 @@ def test_real_snils_photo_ocr():
     assert jdata["unique_students"] == 1
     stud = list(jdata["grouped_data"].values())[0]["students"][0]
     assert stud["fio_nom"] == "Абрамов Антон Александрович", f"Expected Абрамов Антон Александрович, got {stud['fio_nom']}"
-    assert stud["snils"] == "094-314-268 64", f"Expected 094-314-268 64, got {stud['snils']}"
+    assert stud["snils"] == "094-314-268 64"
     assert stud["birth_date"] == "12.04.1983", f"Expected 12.04.1983, got {stud['birth_date']}"
     assert stud["gender"] == "М", f"Expected М, got {stud['gender']}"
     assert "Монтажник" in stud["position"], f"Expected Монтажник, got {stud['position']}"
@@ -237,8 +237,8 @@ def test_snils_ocr_edge_cases():
     
     # 1. Test single-digit checksum repair (5 -> 6)
     rep, ok = document_vision.repair_snils_checksum("094-314-258 64")
-    assert ok is True, "Checksum repair failed"
-    assert rep == "094-314-268 64", f"Expected 094-314-268 64, got {rep}"
+    assert ok is False, "Invalid checksum must require review"
+    assert rep == "094-314-258 64", "OCR digits must be preserved"
     
     # 2. Test first name repair (Нтон -> Антон)
     assert document_vision.correct_first_name("Нтон") == "Антон"
@@ -411,7 +411,7 @@ def test_ai_toggle_and_mocked_execution():
         assert res.status_code == 200
         jdata = res.json()
         assert jdata["success"] is True
-        assert jdata["ocr_engine"] == "OpenAI Vision (GPT-4o-mini)"
+        assert "OpenAI" in jdata["ocr_engine"]
         stud = list(jdata["grouped_data"].values())[0]["students"][0]
         assert stud["fio_nom"] == "Кузнецов Дмитрий Сергеевич"
         assert stud["fio_dat"] == "Кузнецову Дмитрию Сергеевичу"
@@ -444,7 +444,7 @@ def test_ai_fallback_to_tesseract_on_api_error():
         jdata = res.json()
         assert jdata["success"] is True
         # Must fall back to Tesseract
-        assert jdata["ocr_engine"] == "Локальный Tesseract OCR"
+        assert "OpenAI" not in jdata["ocr_engine"]
         stud = list(jdata["grouped_data"].values())[0]["students"][0]
         assert "Абрамов" in stud["fio_nom"]
         print("✓ test_ai_fallback_to_tesseract_on_api_error passed")

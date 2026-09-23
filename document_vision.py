@@ -75,9 +75,8 @@ def correct_first_name(fn: str) -> str:
 
 def repair_snils_checksum(raw_snils: Optional[str]) -> Tuple[Optional[str], bool]:
     """
-    Validates SNILS checksum. If invalid, attempts single-digit OCR error correction
-    (e.g. 5 <-> 6, 6 <-> 8, 3 <-> 8, 1 <-> 7, 0 <-> 8) using the official Pension Fund algorithm.
-    Returns (repaired_snils, is_valid).
+    Validates SNILS checksum; preserves digits when invalid.
+    Returns (formatted_snils, is_valid).
     """
     if not raw_snils:
         return None, False
@@ -85,37 +84,9 @@ def repair_snils_checksum(raw_snils: Optional[str]) -> Tuple[Optional[str], bool
     if ok:
         return formatted, True
 
-    digits = [c for c in raw_snils if c.isdigit()]
-    if len(digits) != 11:
-        return raw_snils, False
-
-    ocr_confusions = {
-        ("5", "6"), ("6", "5"),
-        ("6", "8"), ("8", "6"),
-        ("3", "8"), ("8", "3"),
-        ("1", "7"), ("7", "1"),
-        ("0", "8"), ("8", "0"),
-        ("1", "4"), ("4", "1")
-    }
-
-    conf_candidates = []
-    for i in range(9):
-        orig_d = digits[i]
-        for alt_d in "0123456789":
-            if alt_d == orig_d:
-                continue
-            if (orig_d, alt_d) not in ocr_confusions:
-                continue
-            test_digits = list(digits)
-            test_digits[i] = alt_d
-            test_fmt, is_valid, _ = linguistics.validate_and_format_snils("".join(test_digits))
-            if is_valid:
-                conf_candidates.append(test_fmt)
-
-    if len(conf_candidates) == 1:
-        return conf_candidates[0], True
-
+    # A valid checksum is not evidence that an OCR digit replacement is correct.
     return formatted or raw_snils, False
+
 
 def normalize_fio_order(fio_str: str) -> str:
     """
@@ -345,7 +316,7 @@ def parse_snils_card_text(text: str) -> Dict[str, Any]:
     """
     Extracts SNILS number, FIO, birth date, gender from SNILS card text.
     Handles both modern electronic ADI-REG forms and Soviet/Russian green cards.
-    Automatically validates and repairs single-digit OCR checksum errors (e.g. 5 vs 6).
+    Validates checksum without guessing replacement digits.
     """
     clean_lines = [line.strip() for line in text.split('\n') if line.strip()]
     

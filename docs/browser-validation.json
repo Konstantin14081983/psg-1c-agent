@@ -1,0 +1,8 @@
+{
+  "catalog_search": "passed",
+  "explicit_start": "passed",
+  "sequential_dates": "passed",
+  "docx_download_and_contents": "passed",
+  "xlsx_download_and_contents": "passed",
+  "synthetic_data_only": true
+}

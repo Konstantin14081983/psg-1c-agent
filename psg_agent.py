@@ -32,7 +32,7 @@ def process_application(
     Processes an incoming application file(s) or text and generates 1C Excel spreadsheet.
     Supports AI Vision (OpenAI GPT-4o-mini) or local Tesseract OCR.
     """
-    manual_overrides = manual_overrides or {}
+    manual_overrides = dict(manual_overrides or {})
     engines_used = set()
     
     input_files_list = []
@@ -143,26 +143,13 @@ def process_application(
                 except Exception:
                     pass
     
-    # If still no students, create a fallback student from file/input context
-    if not raw_students and (input_files_list or raw_text):
-        fallback_fio = "Слушатель (данные из входящего документа)"
-        fallback_pos = manual_overrides.get('position') or "Слушатель"
-        raw_students.append({
-            "fio_nom": fallback_fio,
-            "fio_dat": "",
-            "position": fallback_pos,
-            "gender": "",
-            "birth_date": "",
-            "snils": "",
-            "study_dates": manual_overrides.get('study_dates') or "",
-            "contacts": "",
-            "program": manual_overrides.get('program') or ""
-        })
-        
+    if not raw_students:
+        return {'success': False, 'error': 'Слушатели не распознаны. Требуется уточнение или более читаемый документ.'}
+
     base_name = os.path.splitext(input_source_name.split(',')[0])[0].strip()
     if not output_file:
         output_dir = os.path.dirname(input_files_list[0]) if input_files_list else "."
-        today_clean = datetime.date.today().strftime("%Y%m%d_%H%M%S")
+        today_clean = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         docx_file = os.path.join(output_dir or ".", f"Заявка_1С_{base_name}_{today_clean}.docx")
         xlsx_file = os.path.join(output_dir or ".", f"Заявка_1С_{base_name}_{today_clean}.xlsx")
         primary_output = docx_file
@@ -209,8 +196,9 @@ def process_application(
         birth_raw = raw_s.get('birth_date', '')
         snils_raw = raw_s.get('snils', '')
         pos_raw = raw_s.get('position') or manual_overrides.get('position') or ''
-        prog_raw = raw_s.get('program') or manual_overrides.get('programs') or manual_overrides.get('program') or ''
-        dates_raw = raw_s.get('study_dates') or manual_overrides.get('study_dates') or ''
+        prog_raw = manual_overrides.get('programs') or manual_overrides.get('program') or raw_s.get('program') or ''
+        dates_raw = manual_overrides.get('study_dates') or raw_s.get('study_dates') or ''
+        date_role = manual_overrides.get('date_role', 'auto') if manual_overrides.get('study_dates') else raw_s.get('date_role', 'auto')
         contacts_raw = raw_s.get('contacts', '')
         
         # Linguistic & FIO processing (with anomaly and patronymic typo check)
@@ -262,7 +250,7 @@ def process_application(
             
         # Program matching & expansion
         matched_progs = program_matcher.match_programs(prog_raw, position=pos_clean)
-        progs_with_dates = training_rules.assign_sequential_dates(matched_progs, dates_raw, default_end_date=default_app_date)
+        progs_with_dates = training_rules.assign_sequential_dates(matched_progs, dates_raw, date_role=date_role, hours_overrides=manual_overrides.get('hours_overrides'))
         
         student_key = fio_res['nom_fio']
         if student_key not in student_enrollment_tracker:
@@ -271,6 +259,11 @@ def process_application(
         for prog, p_dates, was_split in progs_with_dates:
             p_name = prog['name']
             prog_yellow_flags = dict(yellow_flags)
+            if prog.get('schedule_warning'):
+                prog_yellow_flags['study_dates'] = prog['schedule_warning']
+                all_warnings.append({'student': fio_res['nom_fio'], 'field': 'study_dates', 'reason': prog['schedule_warning']})
+            if not prog.get('is_canonical'):
+                prog_yellow_flags['program'] = prog.get('warning', 'Требуется уточнение программы')
             
             # Category and date auditing
             date_audit = training_rules.validate_dates_and_category(p_name, p_dates)
@@ -282,14 +275,6 @@ def process_application(
                         'message': dw
                     })
                     prog_yellow_flags['study_dates'] = dw
-            elif was_split:
-                all_warnings.append({
-                    'type': 'Сроки обучения',
-                    'student': fio_res['nom_fio'],
-                    'field': 'study_dates',
-                    'reason': f"Сроки для '{p_name[:35]}...' автоматически распределены последовательно: {p_dates}"
-                })
-                    
             # Document package checklist
             doc_flags = manual_overrides.get('documents') or {}
             doc_warns = training_rules.validate_document_package(
@@ -319,7 +304,8 @@ def process_application(
                 'snils': snils_formatted,
                 'study_dates': linguistics.clean_text(p_dates),
                 'contacts': contacts_clean,
-                'yellow_flags': prog_yellow_flags
+                'yellow_flags': prog_yellow_flags,
+                'recognition': {'program_input': prog_raw, 'date_input': dates_raw, 'date_role': date_role, 'program_source': prog.get('source'), 'hours': prog.get('hours'), 'days': prog.get('days'), 'manual_program': bool(manual_overrides.get('program') or manual_overrides.get('programs')), 'manual_dates': bool(manual_overrides.get('study_dates'))}
             }
             
             student_enrollment_tracker[student_key].append({
@@ -334,7 +320,12 @@ def process_application(
                     'is_canonical': prog['is_canonical'],
                     'warning': prog['warning'],
                     'category': date_audit['category'],
-                    'students': []
+                    'students': [],
+                    'hours': prog.get('hours'),
+                    'days': prog.get('days'),
+                    'source': prog.get('source'),
+                    'candidates': prog.get('candidates', []),
+                    'schedule_warning': prog.get('schedule_warning')
                 }
                 if prog['warning']:
                     all_warnings.append({
@@ -397,10 +388,12 @@ def process_application(
     wb.save(xlsx_file)
     
     total_enrollments = sum(len(p['students']) for p in grouped_programs.values())
-    ocr_engine_label = "OpenAI Vision (GPT-4o-mini)" if any("OpenAI" in str(e) for e in engines_used) else "Локальный Tesseract OCR"
+    ocr_engine_label = ", ".join(sorted(engines_used)) or "Локальный разбор документа"
     
     return {
         "success": True,
+        "requires_review": any(p.get("schedule_warning") or not p.get("is_canonical") for p in grouped_programs.values()),
+        "catalog_version": "2026-09-23",
         "input_source": input_source_name,
         "output_file": primary_output,
         "output_filename": os.path.basename(primary_output),

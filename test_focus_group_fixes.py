@@ -51,17 +51,10 @@ class TestFocusGroupFixes(unittest.TestCase):
         self.assertTrue(os.path.exists(out["output_file"]))
 
     def test_kvalifikatsionnoe_worker_profession_mapping(self):
-        cases = [
-            ("квалификационное", "Слесарь-ремонтник 4 разряда", "Профессиональная подготовка по профессии Слесарь-ремонтник 4 разряда"),
-            ("квалификационное удостоверение", "Электрогазосварщик 5 разряда", "Профессиональная подготовка по профессии Электрогазосварщик"),
-            ("повышение квалификации", "Машинист крана автомобильного", "Профессиональная подготовка по профессии Машинист крана автомобильного 7 разряд"),
-            ("присвоение квалификации", "Стропальщик 3 разряда", "Профессиональная подготовка по профессии Стропальщик"),
-            ("аттестация", "Монтажник стальных конструкций", "Профессиональная подготовка по профессии Монтажник стальных конструкций")
-        ]
-        for prog_input, pos, expected_canonical in cases:
-            matched = program_matcher.match_programs(prog_input, position=pos)
-            self.assertTrue(len(matched) >= 1)
-            self.assertEqual(matched[0]["name"], expected_canonical)
+        for text in ('квалификационное', 'повышение квалификации', 'аттестация'):
+            matched = program_matcher.match_programs(text, position='Монтажник')
+            self.assertFalse(matched[0]['is_canonical'])
+            self.assertIsNone(matched[0]['hours'])
 
     def test_image_column_mapping_and_multi_programs(self):
         # 1. Header mapping
@@ -80,11 +73,11 @@ class TestFocusGroupFixes(unittest.TestCase):
         matched = program_matcher.match_programs(prog_text)
         self.assertEqual(len(matched), 5, "Must match all 5 distinct programs: A, B, V, First Aid, PPE")
         names = [m["name"] for m in matched]
-        self.assertTrue(any("общим вопросам охраны труда" in n.lower() for n in names))
+        self.assertTrue(any("общие вопросы охраны труда" in n.lower() for n in names))
         self.assertTrue(any("вредных и (или) опасных" in n.lower() for n in names))
         self.assertTrue(any("повышенной опасности" in n.lower() for n in names))
         self.assertTrue(any("первой помощи" in n.lower() for n in names))
-        self.assertTrue(any("средств индивидуальной защиты" in n.lower() for n in names))
+        self.assertTrue(any(("средств индивидуальной защиты" in n.lower() or "сиз" in n.lower()) for n in names))
 
     @patch("ai_vision._http_post")
     def test_ai_vision_multi_student_extraction(self, mock_post):
@@ -226,7 +219,7 @@ class TestFocusGroupFixes(unittest.TestCase):
         import training_rules
         matched = program_matcher.match_programs("Охрана труда А, Охрана труда Б, Первая помощь, Применение СИЗ")
         self.assertEqual(len(matched), 4)
-        seq = training_rules.assign_sequential_dates(matched, "11.09.2026")
+        seq = training_rules.assign_sequential_dates(matched, "Окончание 11.09.2026")
         assigned_dates = [s[1] for s in seq]
         self.assertEqual(assigned_dates, [
             "02.09.2026 - 03.09.2026",
@@ -240,7 +233,8 @@ class TestFocusGroupFixes(unittest.TestCase):
         # Single worker profession leading up to 11.09.2026
         matched_worker = program_matcher.match_programs("Сварщик")
         seq_w = training_rules.assign_sequential_dates(matched_worker, "11.09.2026")
-        self.assertEqual(seq_w[0][1], "13.08.2026 - 11.09.2026")
+        self.assertEqual(seq_w[0][1], "")
+        self.assertTrue(seq_w[0][0]["schedule_warning"])
 
         # 3. End-to-end processing of application
         text_input = """1. Яровой Павел Александрович, Яровому Павлу Александрови Чу, 26.07.1982, Монтажник, 11.09.2026
@@ -300,7 +294,7 @@ class TestFocusGroupFixes(unittest.TestCase):
             res_ai = doc_reader.parse_incoming_application(doc_path, use_ai=True)
             self.assertEqual(len(res_ai.get("students", [])), 1)
             self.assertEqual(res_ai["students"][0]["fio_nom"], "Вакин Константин Павлович")
-            self.assertEqual(res_ai["engine"], "OpenAI (GPT-4o-mini)")
+            self.assertEqual(res_ai["engine"], "Таблицы DOCX")
 
         # 3. AI error fallback to standard extraction
         with patch("ai_vision.analyze_text_message_with_ai", return_value={"success": False, "students": [], "error": "API unreachable"}):

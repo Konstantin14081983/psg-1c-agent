@@ -183,12 +183,23 @@ async def process_api(
     program: Optional[str] = Form(None),
     study_dates: Optional[str] = Form(None),
     position: Optional[str] = Form(None),
+    date_role: str = Form("auto"),
+    hours_overrides: str = Form("{}"),
     has_diploma: Optional[bool] = Form(False),
     has_photo: Optional[bool] = Form(False),
     has_certificate: Optional[bool] = Form(False),
     use_ai: Optional[Any] = Form(False),
     openai_api_key: Optional[str] = Form(None)
 ):
+    import json
+    try:
+        parsed_hours = json.loads(hours_overrides)
+        if not isinstance(parsed_hours, dict) or date_role not in ('auto', 'start', 'end'):
+            raise ValueError()
+        if any(isinstance(v, bool) or not isinstance(v, int) or not 1 <= v <= 2000 for v in parsed_hours.values()):
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=422, detail='Некорректные параметры сроков или часов')
     saved_file_paths = []
     
     try:
@@ -202,6 +213,8 @@ async def process_api(
 
         manual_overrides = {
             "category": category if category else None,
+            "date_role": date_role,
+            "hours_overrides": parsed_hours,
             "program": program if program else None,
             "study_dates": study_dates if study_dates else None,
             "position": position if position else None,
@@ -337,3 +350,12 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print(f"🚀 Запуск веб-сервера Агента 1С ПСГ: http://0.0.0.0:{port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+@app.get('/api/programs')
+async def programs_api(q: str = ''):
+    from training_catalog import catalog, norm
+    if len(q) > 300:
+        raise HTTPException(status_code=422, detail='Слишком длинный запрос')
+    items = [p for p in catalog()['programs'] if p['status'] == 'offered' and norm(q) in norm(p['name'])]
+    return {'version': catalog()['version'], 'total': len(items), 'programs': items[:100]}

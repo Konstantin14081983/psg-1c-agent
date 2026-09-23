@@ -454,17 +454,20 @@ def extract_letter_programs(paragraphs: List[str]) -> List[str]:
         # Check start of program block in letter
         if any(k in p_low for k in ['просит провести', 'по программам', 'на обучение по', 'просим обучить', 'по следующим программам']):
             in_prog_block = True
-            continue
+            # Keep the part on this same line after the enrollment request.
+            p_clean = re.sub(r'^.*?(?:по следующим программам|по программам|на обучение по|просим обучить|просит провести)\s*[:—-]?\s*', '', p_clean, flags=re.I)
+            p_clean = re.sub(r'^(?:сотрудников|работников).*?\sпо\s+', '', p_clean, flags=re.I)
+            p_low = p_clean.lower()
             
         # Check end of program block (e.g. table header or payment guarantee or signature)
-        if any(k in p_low for k in ['фамилия', '№ п/п', 'оплату гарантируем', 'главный инженер', 'директор', 'руководитель']):
+        if re.match(r'^(?:фамилия|№\s*п/п|оплату гарантируем|главный инженер|директор|руководитель)\b', p_low):
             in_prog_block = False
             
         is_bullet = bool(re.match(r'^(?:[-–—•\*]|\d+[\.\)]|[-–—]?\d+\s+)\s*', p_clean))
         has_prog_kw = any(k in p_low for k in [
             'безопасные методы', 'охрана труда', 'перв', 'помощ', 'помош', 'сиз',
             'средств индивидуальной защиты', 'высот', 'электроустанов', 'тепловых',
-            'пожарн', 'птм', 'эколог', 'бдд', 'правила безопасности', 'озп'
+            'пожарн', 'птм', 'эколог', 'бдд', 'правила безопасности', 'озп', 'дпп', 'пк ', 'квалификац', 'переподготовк'
         ])
         
         if (in_prog_block or is_bullet) and has_prog_kw:
@@ -489,6 +492,10 @@ def identify_columns(header_row: List[str]) -> Dict[str, int]:
         if any(kw in c for kw in ['почт', 'телефон', 'email', 'e-mail', 'контакт', 'тел.']):
             col_map['contacts'] = idx
             
+        # Explicit admission/start fields are training start dates, never end dates.
+        elif any(kw in c.replace('ё', 'е') for kw in ['дата приема', 'прием', 'трудоустройств', 'принят', 'выхода на работу', 'начало обуч', 'дата начала']):
+            col_map['study_dates'] = idx
+            col_map['start_date_column'] = idx
         # 2. Study dates
         elif any(kw in c for kw in ['срок', 'период', 'окончан', 'сроки обучен', 'даты']):
             col_map['study_dates'] = idx
@@ -633,12 +640,17 @@ def parse_student_line(raw_line: str, current_program: Optional[str] = None) -> 
     position = ""
     program = current_program or ""
     
+    explicit_start = re.search(r'(?:дата\s+при[её]ма|трудоустройств[а-я]*|выход[а-я]*\s+на\s+работу|принят[а-я]*|начало\s+обучения)\s*[:—-]?\s*(\d{1,2}[./-]\d{1,2}[./-]\d{4})', raw_line, re.I)
+    if explicit_start:
+        dates = 'Начало обучения ' + explicit_start[1]
+        line = line.replace(explicit_start[0], ' , ')
+
     # 1. Extract study dates range (e.g. 01.09.2026 - 15.09.2026) or labeled end date (e.g. окончание: 11.09.2026, даты: 11.09.2026)
     m_dates = re.search(r'(?:(?:сроки|период|даты(?:\s+обучения)?|окончани[ея](?:\s+обучения)?)[:\s]+)\b(\d{2}\.\d{2}\.\d{4}\s*(?:[-—–]|по)\s*\d{2}\.\d{2}\.\d{4}|\d{2}\.\d{2}\.\d{4})\b', line, re.I)
     if not m_dates:
         m_dates = re.search(r'\b(\d{2}\.\d{2}\.\d{4}\s*(?:[-—–]|по)\s*\d{2}\.\d{2}\.\d{4})\b', line, re.I)
     if m_dates:
-        dates = m_dates.group(1).strip()
+        dates = ('Окончание ' if re.search(r'окончани', m_dates[0], re.I) else '') + m_dates.group(1).strip()
         line = line[:m_dates.start()] + ' , ' + line[m_dates.end():]
         
     # 2. Extract SNILS (including optional 'СНИЛС:' prefix and OCR letters)
@@ -1115,7 +1127,8 @@ def parse_raw_text_application(raw_text: str) -> Dict[str, Any]:
         
     app_title = None
     students = []
-    current_program = None
+    common_programs = extract_letter_programs(lines)
+    current_program = '; '.join(common_programs) if common_programs else None
     
     # Check for title in the first 3 lines
     for line in lines[:3]:
@@ -1128,6 +1141,9 @@ def parse_raw_text_application(raw_text: str) -> Dict[str, Any]:
     has_table_markers = any(kw in lines_lower for kw in ['просим обучить', 'прошу обучить', 'направляем на обучение', 'в дательном падеже', 'номер/скан', 'кого обучаем'])
     if has_table_markers or ('снилс' in lines_lower and 'рождения' in lines_lower):
         scanned_studs = parse_scanned_table_text(raw_text)
+        if current_program:
+            for student in scanned_studs:
+                if not student.get('program'): student['program'] = current_program
         if len(scanned_studs) >= 2:
             return {
                 "title": app_title,
@@ -1388,6 +1404,12 @@ def extract_students_from_tables(
             birth_date_val = str(row[col_map['birth_date']]).strip() if 'birth_date' in col_map and col_map['birth_date'] < len(row) else ''
             snils_val = str(row[col_map['snils']]).strip() if 'snils' in col_map and col_map['snils'] < len(row) else ''
             study_dates_val = str(row[col_map['study_dates']]).strip() if 'study_dates' in col_map and col_map['study_dates'] < len(row) else ''
+            date_header = str(tbl[header_idx][col_map['study_dates']]).lower() if 'study_dates' in col_map else ''
+            date_role = 'start' if 'start_date_column' in col_map else 'end' if any(w in date_header for w in ('окончан', 'заверш')) else 'auto'
+            if date_role == 'start' and study_dates_val:
+                study_dates_val = 'Начало обучения ' + study_dates_val
+            elif date_role == 'end' and study_dates_val:
+                study_dates_val = 'Окончание ' + study_dates_val
             contacts_val = str(row[col_map['contacts']]).strip() if 'contacts' in col_map and col_map['contacts'] < len(row) else ''
             
             prog_val = None
@@ -1406,6 +1428,7 @@ def extract_students_from_tables(
                 "birth_date": birth_date_val,
                 "snils": snils_val,
                 "study_dates": study_dates_val,
+                "date_role": date_role,
                 "contacts": contacts_val,
                 "program": prog_val
             })
@@ -1441,6 +1464,10 @@ def parse_incoming_application(
         tables = data.get('tables', [])
         docx_paragraphs = data.get('paragraphs', [])
         letter_progs = extract_letter_programs(docx_paragraphs)
+
+        local_students = extract_students_from_tables(tables, letter_progs)
+        if local_students and all(x.get('program') for x in local_students):
+            return {'title': extracted_title, 'students': local_students, 'engine': 'Таблицы DOCX'}
 
         # If AI analysis requested and available, use AI semantic extraction on Word document content
         if use_ai:
@@ -1519,7 +1546,12 @@ def parse_incoming_application(
         data = extract_xlsx_data(file_path)
         extracted_title = data.get('title')
         tables = data.get('tables', [])
+        letter_progs = extract_letter_programs([' '.join(row) for table in tables for row in table])
     elif ext == '.pdf':
+        data = extract_pdf_data(file_path)
+        local_students = extract_students_from_tables(data.get('tables', []), extract_letter_programs(data.get('paragraphs', [])))
+        if local_students and all(x.get('program') for x in local_students):
+            return {'title': data.get('title'), 'students': local_students, 'engine': 'Векторные таблицы PDF'}
         # If AI Vision requested and available, use AI multimodal on all PDF pages
         if use_ai:
             try:
@@ -1532,7 +1564,7 @@ def parse_incoming_application(
                     for p_idx in range(len(doc_pdf)):
                         page = doc_pdf[p_idx]
                         pix = page.get_pixmap(dpi=200)
-                        temp_img = os.path.join(UPLOAD_DIR, f"temp_pdf_{uuid.uuid4().hex[:8]}_p{p_idx}.png")
+                        temp_img = os.path.join(os.path.dirname(os.path.abspath(file_path)), f"temp_pdf_{uuid.uuid4().hex[:8]}_p{p_idx}.png")
                         pix.save(temp_img)
                         temp_imgs.append(temp_img)
                     try:

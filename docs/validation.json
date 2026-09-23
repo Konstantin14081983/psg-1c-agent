@@ -1,0 +1,259 @@
+{
+  "total": 62,
+  "passed": 60,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 2,
+  "tests": [
+    {
+      "test": "unittest.case.FunctionTestCase (test_homoglyphs_and_declension)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_snils_checksum)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_female_declension)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_program_matching)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_full_pipeline_synthetic)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_homepage)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_errors_sample_file)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_process_raw_text)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_image_and_multi_programs)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_verbal_birth_date)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_multi_ot_sequential_no_violations)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_real_snils_photo_ocr)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_snils_ocr_edge_cases)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_text_message_fio_position_parsing)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_seven_fields_extraction)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_file_and_text_reconciliation_no_duplicates)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_ai_toggle_and_mocked_execution)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_ai_fallback_to_tesseract_on_api_error)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_text_input_nlp_autocorrection_and_audit)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_ai_status_endpoint)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_favicon_endpoint)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_cleanup_endpoint)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (test_download_and_auto_cleanup)",
+      "status": "passed"
+    },
+    {
+      "test": "test_ai_vision_multi_student_extraction (test_focus_group_fixes.TestFocusGroupFixes.test_ai_vision_multi_student_extraction)",
+      "status": "passed"
+    },
+    {
+      "test": "test_fio_double_letters_preserved_and_docx_download (test_focus_group_fixes.TestFocusGroupFixes.test_fio_double_letters_preserved_and_docx_download)",
+      "status": "passed"
+    },
+    {
+      "test": "test_image_column_mapping_and_multi_programs (test_focus_group_fixes.TestFocusGroupFixes.test_image_column_mapping_and_multi_programs)",
+      "status": "passed"
+    },
+    {
+      "test": "test_kvalifikatsionnoe_worker_profession_mapping (test_focus_group_fixes.TestFocusGroupFixes.test_kvalifikatsionnoe_worker_profession_mapping)",
+      "status": "passed"
+    },
+    {
+      "test": "test_legacy_doc_vakin_standard_and_ai (test_focus_group_fixes.TestFocusGroupFixes.test_legacy_doc_vakin_standard_and_ai)",
+      "status": "passed"
+    },
+    {
+      "test": "test_ocr_date_space_and_split_patronymic_autocorrection (test_focus_group_fixes.TestFocusGroupFixes.test_ocr_date_space_and_split_patronymic_autocorrection)",
+      "status": "passed"
+    },
+    {
+      "test": "unittest.case.FunctionTestCase (skip)",
+      "status": "skipped",
+      "reason": "External fixture not portable; covered by synthetic and optional local regression"
+    },
+    {
+      "test": "test_position_double_letter_preservation (test_focus_group_fixes.TestFocusGroupFixes.test_position_double_letter_preservation)",
+      "status": "passed"
+    },
+    {
+      "test": "test_user_excel_table_parsing (test_focus_group_fixes.TestFocusGroupFixes.test_user_excel_table_parsing)",
+      "status": "passed"
+    },
+    {
+      "test": "test_word_doc_robustness (test_focus_group_fixes.TestFocusGroupFixes.test_word_doc_robustness)",
+      "status": "passed"
+    },
+    {
+      "test": "test_word_table_subheaders_and_empty_sections (test_focus_group_fixes.TestFocusGroupFixes.test_word_table_subheaders_and_empty_sections)",
+      "status": "skipped",
+      "reason": "Focus group docx not found on disk"
+    },
+    {
+      "test": "test_yarovoy_dative_declension_and_backward_dates (test_focus_group_fixes.TestFocusGroupFixes.test_yarovoy_dative_declension_and_backward_dates)",
+      "status": "passed"
+    },
+    {
+      "test": "test_all_catalog_rows (test_recognition_quality.RecognitionQuality.test_all_catalog_rows)",
+      "status": "passed"
+    },
+    {
+      "test": "test_api_catalog_and_validation (test_recognition_quality.RecognitionQuality.test_api_catalog_and_validation)",
+      "status": "passed"
+    },
+    {
+      "test": "test_backward (test_recognition_quality.RecognitionQuality.test_backward)",
+      "status": "passed"
+    },
+    {
+      "test": "test_calendar_totals (test_recognition_quality.RecognitionQuality.test_calendar_totals)",
+      "status": "passed"
+    },
+    {
+      "test": "test_demo_excluded (test_recognition_quality.RecognitionQuality.test_demo_excluded)",
+      "status": "passed"
+    },
+    {
+      "test": "test_dpp_not_ot (test_recognition_quality.RecognitionQuality.test_dpp_not_ot)",
+      "status": "passed"
+    },
+    {
+      "test": "test_empty_document_not_fake_student (test_recognition_quality.RecognitionQuality.test_empty_document_not_fake_student)",
+      "status": "passed"
+    },
+    {
+      "test": "test_focus_group_sequence (test_recognition_quality.RecognitionQuality.test_focus_group_sequence)",
+      "status": "passed"
+    },
+    {
+      "test": "test_header_course_for_managers (test_recognition_quality.RecognitionQuality.test_header_course_for_managers)",
+      "status": "passed"
+    },
+    {
+      "test": "test_header_scope_and_columns (test_recognition_quality.RecognitionQuality.test_header_scope_and_columns)",
+      "status": "passed"
+    },
+    {
+      "test": "test_hours_options (test_recognition_quality.RecognitionQuality.test_hours_options)",
+      "status": "passed"
+    },
+    {
+      "test": "test_job_not_course (test_recognition_quality.RecognitionQuality.test_job_not_course)",
+      "status": "passed"
+    },
+    {
+      "test": "test_missing_group_requires_review (test_recognition_quality.RecognitionQuality.test_missing_group_requires_review)",
+      "status": "passed"
+    },
+    {
+      "test": "test_no_compression_or_reversal (test_recognition_quality.RecognitionQuality.test_no_compression_or_reversal)",
+      "status": "passed"
+    },
+    {
+      "test": "test_occupation_registry_is_not_offering (test_recognition_quality.RecognitionQuality.test_occupation_registry_is_not_offering)",
+      "status": "passed"
+    },
+    {
+      "test": "test_ot_v_not_group_course (test_recognition_quality.RecognitionQuality.test_ot_v_not_group_course)",
+      "status": "passed"
+    },
+    {
+      "test": "test_output_formats (test_recognition_quality.RecognitionQuality.test_output_formats)",
+      "status": "passed"
+    },
+    {
+      "test": "test_price_wins (test_recognition_quality.RecognitionQuality.test_price_wins)",
+      "status": "passed"
+    },
+    {
+      "test": "test_registry_added_numbers (test_recognition_quality.RecognitionQuality.test_registry_added_numbers)",
+      "status": "passed"
+    },
+    {
+      "test": "test_round_up (test_recognition_quality.RecognitionQuality.test_round_up)",
+      "status": "passed"
+    },
+    {
+      "test": "test_snils_not_rewritten (test_recognition_quality.RecognitionQuality.test_snils_not_rewritten)",
+      "status": "passed"
+    },
+    {
+      "test": "test_start_synonyms (test_recognition_quality.RecognitionQuality.test_start_synonyms)",
+      "status": "passed"
+    },
+    {
+      "test": "test_text_date_not_birthdate (test_recognition_quality.RecognitionQuality.test_text_date_not_birthdate)",
+      "status": "passed"
+    },
+    {
+      "test": "test_transferred_saturday (test_recognition_quality.RecognitionQuality.test_transferred_saturday)",
+      "status": "passed"
+    },
+    {
+      "test": "test_unknowns_fail_closed (test_recognition_quality.RecognitionQuality.test_unknowns_fail_closed)",
+      "status": "passed"
+    },
+    {
+      "test": "test_worker_rank_duration (test_recognition_quality.RecognitionQuality.test_worker_rank_duration)",
+      "status": "passed"
+    },
+    {
+      "test": "test_xlsx_header (test_recognition_quality.RecognitionQuality.test_xlsx_header)",
+      "status": "passed"
+    }
+  ]
+}
