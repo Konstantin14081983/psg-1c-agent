@@ -917,14 +917,15 @@ def parse_scanned_table_text(raw_text: str) -> List[Dict[str, Any]]:
         return []
         
     start_idx = 0
+    # OCR may place the addressee AFTER the invitation. A real table header
+    # takes precedence, otherwise the director's name can replace row one.
     for idx, line in enumerate(lines):
         low = line.lower()
+        if 'фио' in low and any(k in low for k in ['рождения', 'снилс', 'должность', 'номер/скан']):
+            start_idx = idx + 1
+            break
         if any(kw in low for kw in ['просим обучить', 'прошу обучить', 'направляем на обучение', 'список слушателей', 'список сотрудников']):
             start_idx = idx + 1
-            break
-        if 'фио' in low and any(k in low for k in ['рождения', 'снилс', 'должность']):
-            start_idx = idx + 1
-            break
 
     table_lines = lines[start_idx:]
     end_idx = len(table_lines)
@@ -997,7 +998,7 @@ def parse_scanned_table_text(raw_text: str) -> List[Dict[str, Any]]:
         snils = ''
         m_snils = re.search(r'\b(\d{3}[\s\-]\d{3}[\s\-]\d{3}[\s\-]?[0-9%]{2})\b', raw_block)
         if m_snils:
-            s_cand = m_snils.group(1).replace('%', '4')
+            s_cand = m_snils.group(1)
             s_norm, s_ok, _ = linguistics.validate_and_format_snils(s_cand)
             snils = s_norm if s_ok else s_cand
             raw_block = raw_block[:m_snils.start()] + ' | ' + raw_block[m_snils.end():]
@@ -1107,7 +1108,7 @@ def parse_scanned_table_text(raw_text: str) -> List[Dict[str, Any]]:
                 'gender': gender,
                 'snils': snils,
                 'position': pos_str,
-                'program': prog_str or 'Оказание первой помощи пострадавшим на производстве'
+                'program': prog_str
             })
             
     return results
@@ -1548,73 +1549,20 @@ def parse_incoming_application(
         tables = data.get('tables', [])
         letter_progs = extract_letter_programs([' '.join(row) for table in tables for row in table])
     elif ext == '.pdf':
+        # A text-bearing first page must not hide a scanned continuation page.
+        import fitz
+        with fitz.open(file_path) as pdf_document:
+            has_scan = any(not page.get_text().strip() and page.get_images() for page in pdf_document)
+        if has_scan:
+            from scan_recognition import parse_scan
+            return parse_scan(file_path, use_ai=use_ai, api_key=openai_api_key)
         data = extract_pdf_data(file_path)
         local_students = extract_students_from_tables(data.get('tables', []), extract_letter_programs(data.get('paragraphs', [])))
         if local_students and all(x.get('program') for x in local_students):
             return {'title': data.get('title'), 'students': local_students, 'engine': 'Векторные таблицы PDF'}
-        # If AI Vision requested and available, use AI multimodal on all PDF pages
-        if use_ai:
-            try:
-                import fitz
-                import uuid
-                import ai_vision
-                doc_pdf = fitz.open(file_path)
-                if len(doc_pdf) > 0:
-                    temp_imgs = []
-                    for p_idx in range(len(doc_pdf)):
-                        page = doc_pdf[p_idx]
-                        pix = page.get_pixmap(dpi=200)
-                        temp_img = os.path.join(os.path.dirname(os.path.abspath(file_path)), f"temp_pdf_{uuid.uuid4().hex[:8]}_p{p_idx}.png")
-                        pix.save(temp_img)
-                        temp_imgs.append(temp_img)
-                    try:
-                        vision_res = ai_vision.analyze_multi_page_document_with_ai(temp_imgs, api_key=openai_api_key)
-                    finally:
-                        for t_img in temp_imgs:
-                            if os.path.exists(t_img):
-                                try:
-                                    os.remove(t_img)
-                                except Exception:
-                                    pass
-                    if vision_res.get('success'):
-                        students = []
-                        if vision_res.get('students'):
-                            for s in vision_res['students']:
-                                prog = s.get('program') or ("; ".join(s.get('programs', [])) if isinstance(s.get('programs'), list) else "")
-                                students.append({
-                                    "fio_nom": s.get('fio') or s.get('fio_nom') or "Слушатель",
-                                    "fio_dat": s.get('fio_dat') or "",
-                                    "position": s.get('position') or "",
-                                    "gender": s.get('gender') or "",
-                                    "birth_date": s.get('birth_date') or "",
-                                    "snils": s.get('snils') or "",
-                                    "study_dates": s.get('study_dates') or "",
-                                    "contacts": s.get('contacts') or "",
-                                    "program": prog,
-                                    "engine": vision_res.get('engine', '')
-                                })
-                        elif vision_res.get('fio'):
-                            prog = vision_res.get('program') or ("; ".join(vision_res.get('programs', [])) if isinstance(vision_res.get('programs'), list) else "")
-                            students.append({
-                                "fio_nom": vision_res.get('fio'),
-                                "fio_dat": "",
-                                "position": vision_res.get('position') or "",
-                                "gender": vision_res.get('gender') or "",
-                                "birth_date": vision_res.get('birth_date') or "",
-                                "snils": vision_res.get('snils') or "",
-                                "study_dates": "",
-                                "contacts": "",
-                                "program": prog,
-                                "engine": vision_res.get('engine', '')
-                            })
-                        if students:
-                            return {
-                                "title": vision_res.get('application_title') or extracted_title or f"ЗАЯВКА НА ОБУЧЕНИЕ от {datetime.date.today().strftime('%d.%m.%Y')} г.",
-                                "students": students,
-                                "engine": vision_res.get('engine', '')
-                            }
-            except Exception as e:
-                print(f"PDF AI Vision notice: {e}")
+        if not any(str(p).strip() for p in data.get('paragraphs', [])) and not local_students:
+            from scan_recognition import parse_scan
+            return parse_scan(file_path, use_ai=use_ai, api_key=openai_api_key)
 
         # Standard PDF scanner (Vector table extraction + letter program extraction)
         data = extract_pdf_data(file_path)
@@ -1624,6 +1572,10 @@ def parse_incoming_application(
         letter_progs = extract_letter_programs(pdf_paragraphs)
 
     elif ext in ('.png', '.jpg', '.jpeg', '.heic', '.webp', '.bmp', '.tiff'):
+        from scan_recognition import parse_scan
+        scanned = parse_scan(file_path, use_ai=use_ai, api_key=openai_api_key, verify_applications_only=True)
+        if len(scanned.get('students', [])) >= 2 or any(s.get('program') for s in scanned.get('students', [])):
+            return scanned
         import document_vision
         vision_res = document_vision.parse_document_image(file_path, use_ai=use_ai, openai_api_key=openai_api_key)
         students = []

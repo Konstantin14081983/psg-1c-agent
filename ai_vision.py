@@ -461,6 +461,8 @@ def analyze_document_with_ai(
             }
 
         res_json = resp.json()
+        if res_json["choices"][0].get("finish_reason") == "length":
+            return {"success": False, "error": "Ответ ИИ обрезан лимитом длины и не принят; требуется сверка."}
         raw_content = res_json["choices"][0]["message"]["content"]
         extracted = json.loads(raw_content)
         return _normalize_vision_response(extracted, model)
@@ -493,7 +495,7 @@ def _normalize_vision_response(extracted: Dict[str, Any], model: str) -> Dict[st
     normalized_students = []
     import linguistics
     for s in raw_students:
-        s_fio = str(s.get("fio", "")).strip()
+        s_fio = str(s.get("fio") or s.get("fio_nom") or "").strip()
         # Ignore headers/signers/organizations mistakenly captured as FIO
         if not s_fio or any(ign in s_fio.lower() for ign in ['директор', 'главный инженер', 'исполнитель', 'организаци', 'предприяти', 'таблица']):
             if not s_fio and (s.get("snils") or s.get("position")):
@@ -517,7 +519,7 @@ def _normalize_vision_response(extracted: Dict[str, Any], model: str) -> Dict[st
         if s_gender not in ("М", "Ж"):
             s_gender = ""
 
-        s_progs = s.get("programs", [])
+        s_progs = s.get("programs") or s.get("program") or []
         if isinstance(s_progs, str):
             s_progs = [p.strip() for p in re.split(r'[;\n]+', s_progs) if p.strip()]
         if not s_progs and common_progs:
@@ -568,7 +570,7 @@ def analyze_multi_page_document_with_ai(
 ) -> Dict[str, Any]:
     """
     Analyzes multi-page document photo/scan with OpenAI Vision.
-    Processes all pages sequentially, extracting all students into one array.
+    Sends all pages in one request, extracting students into one array.
     """
     if not image_paths:
         return {"success": False, "error": "Нет страниц для распознавания"}
@@ -635,6 +637,8 @@ def analyze_multi_page_document_with_ai(
             return {"success": False, "error": err_msg}
 
         res_json = resp.json()
+        if res_json["choices"][0].get("finish_reason") == "length":
+            return {"success": False, "error": "Ответ ИИ обрезан лимитом длины и не принят; требуется сверка."}
         raw_content = res_json["choices"][0]["message"]["content"]
         extracted = json.loads(raw_content)
         return _normalize_vision_response(extracted, model)

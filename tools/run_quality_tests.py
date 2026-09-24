@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory(prefix='psg-tests-') as temp:
     socket.create_connection=deny;socket.socket.connect=deny
     import ai_vision
     ai_vision.load_env_config=lambda:{}
-    import test_agent_edge_cases,test_web_app,test_focus_group_fixes,test_recognition_quality
+    import test_agent_edge_cases,test_web_app,test_focus_group_fixes,test_recognition_quality,test_scan_recognition
     suite=unittest.TestSuite()
     for module in (test_agent_edge_cases,test_web_app):
         for name,fn in vars(module).items():
@@ -26,6 +26,7 @@ with tempfile.TemporaryDirectory(prefix='psg-tests-') as temp:
             suite.addTest(unittest.FunctionTestCase(skip))
         else:suite.addTest(test)
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(test_recognition_quality.RecognitionQuality))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(test_scan_recognition.ScanRecognition))
     class Result(unittest.TestResult):
         def __init__(self):super().__init__();self.rows=[]
         def addSuccess(self,t):super().addSuccess(t);self.rows.append({'test':str(t),'status':'passed'})

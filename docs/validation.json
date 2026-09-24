@@ -1,6 +1,6 @@
 {
-  "total": 62,
-  "passed": 60,
+  "total": 76,
+  "passed": 74,
   "failed": 0,
   "errors": 0,
   "skipped": 2,
@@ -253,6 +253,62 @@
     },
     {
       "test": "test_xlsx_header (test_recognition_quality.RecognitionQuality.test_xlsx_header)",
+      "status": "passed"
+    },
+    {
+      "test": "test_addressee_after_invitation_does_not_replace_first_student (test_scan_recognition.ScanRecognition.test_addressee_after_invitation_does_not_replace_first_student)",
+      "status": "passed"
+    },
+    {
+      "test": "test_api_failure_keeps_complete_local_result (test_scan_recognition.ScanRecognition.test_api_failure_keeps_complete_local_result)",
+      "status": "passed"
+    },
+    {
+      "test": "test_duplicate_rows_are_not_collapsed (test_scan_recognition.ScanRecognition.test_duplicate_rows_are_not_collapsed)",
+      "status": "passed"
+    },
+    {
+      "test": "test_empty_program_is_not_invented (test_scan_recognition.ScanRecognition.test_empty_program_is_not_invented)",
+      "status": "passed"
+    },
+    {
+      "test": "test_manual_start_survives_ai_disagreement_and_exports (test_scan_recognition.ScanRecognition.test_manual_start_survives_ai_disagreement_and_exports)",
+      "status": "passed"
+    },
+    {
+      "test": "test_mixed_pdf_scanned_continuation_is_not_skipped (test_scan_recognition.ScanRecognition.test_mixed_pdf_scanned_continuation_is_not_skipped)",
+      "status": "passed"
+    },
+    {
+      "test": "test_multipage_pdf_same_inputs_and_cleanup (test_scan_recognition.ScanRecognition.test_multipage_pdf_same_inputs_and_cleanup)",
+      "status": "passed"
+    },
+    {
+      "test": "test_normalizer_accepts_program_and_fio_nom (test_scan_recognition.ScanRecognition.test_normalizer_accepts_program_and_fio_nom)",
+      "status": "passed"
+    },
+    {
+      "test": "test_omitted_and_changed_identity_preserves_baseline (test_scan_recognition.ScanRecognition.test_omitted_and_changed_identity_preserves_baseline)",
+      "status": "passed"
+    },
+    {
+      "test": "test_orientation_fallback_includes_zero_score (test_scan_recognition.ScanRecognition.test_orientation_fallback_includes_zero_score)",
+      "status": "passed"
+    },
+    {
+      "test": "test_orientation_uses_each_page_osd (test_scan_recognition.ScanRecognition.test_orientation_uses_each_page_osd)",
+      "status": "passed"
+    },
+    {
+      "test": "test_tiff_all_frames_and_single_ai_verification (test_scan_recognition.ScanRecognition.test_tiff_all_frames_and_single_ai_verification)",
+      "status": "passed"
+    },
+    {
+      "test": "test_truncated_ai_response_is_not_accepted (test_scan_recognition.ScanRecognition.test_truncated_ai_response_is_not_accepted)",
+      "status": "passed"
+    },
+    {
+      "test": "test_unmatched_ai_rows_remain_review_candidates (test_scan_recognition.ScanRecognition.test_unmatched_ai_rows_remain_review_candidates)",
       "status": "passed"
     }
   ]

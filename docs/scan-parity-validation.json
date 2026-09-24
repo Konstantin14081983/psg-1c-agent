@@ -1,0 +1,50 @@
+{
+  "source_pages": 2,
+  "attached_local_students": 8,
+  "attached_vision_students": 5,
+  "real_ai_called": false,
+  "ai_test": "replayed attached Vision output",
+  "rotation_checks": [
+    {
+      "rotation": 0,
+      "students": 8,
+      "identical_rows": true
+    },
+    {
+      "rotation": 90,
+      "students": 8,
+      "identical_rows": true
+    },
+    {
+      "rotation": 180,
+      "students": 8,
+      "identical_rows": true
+    },
+    {
+      "rotation": 270,
+      "students": 8,
+      "identical_rows": true
+    }
+  ],
+  "identical_export_values": true,
+  "students": 8,
+  "programs": [
+    "Программа обучения по оказанию первой помощи пострадавшим"
+  ],
+  "dates": [
+    "24.09.2026 - 25.09.2026"
+  ],
+  "review_candidates": 3,
+  "ai_disagreements": 9,
+  "visual_source_check": {
+    "pages_reviewed": 2,
+    "rows_reviewed": 8,
+    "fields": [
+      "fio_nom",
+      "birth_date",
+      "snils"
+    ],
+    "mismatches": 0,
+    "method": "Manual comparison against rendered source pages; identifiers omitted from report"
+  }
+}

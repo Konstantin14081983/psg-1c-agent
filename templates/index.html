@@ -1384,7 +1384,7 @@
                   <i data-lucide="sparkles"></i>
                   <span>Распознавание через ИИ (Vision)</span>
                 </div>
-                <div class="ai-mode-subtitle">Точное оптическое распознавание фото СНИЛС, паспортов, патентов и почерка</div>
+                <div class="ai-mode-subtitle">Сканы заявок: общий локальный разбор и дополнительная сверка ИИ. Расхождения требуют проверки.</div>
               </div>
               <div class="switch-wrapper">
                 <span class="ai-badge" id="aiStatusBadge">
@@ -2438,12 +2438,22 @@
           const item = document.createElement('div');
           item.className = 'audit-item audit-item-warning';
           const title = w.student ? w.student : w.program;
-          item.innerHTML = `<i data-lucide="alert-circle" style="width: 16px; height: 16px; flex-shrink: 0; color: var(--amber-primary); margin-top: 2px;"></i><div><strong>${title} (${w.field || 'программа'}):</strong> ${w.reason}</div>`;
+          item.textContent = `${title || 'Распознавание'} (${w.field || 'программа'}): ${w.reason}`;
           listYellow.appendChild(item);
         });
       } else {
         secYellow.style.display = 'none';
       }
+
+      // Unmatched Vision rows are visible for review, never silently discarded.
+      (data.audit.ai_candidates || []).forEach(candidate => {
+        secYellow.style.display = 'block';
+        const item = document.createElement('div');
+        item.className = 'audit-item audit-item-warning';
+        const student = candidate.student;
+        item.textContent = `Строка ИИ для ручной сверки (${candidate.source}): ${student.fio_nom || student.fio || 'ФИО не прочитано'}; СНИЛС: ${student.snils || 'не прочитан'}; дата рождения: ${student.birth_date || 'не прочитана'}; программа: ${student.program || 'не определена'}. В заявку автоматически не включена.`;
+        listYellow.appendChild(item);
+      });
 
       // Download buttons (Word .docx primary, Excel .xlsx secondary)
       const downloadBtn = document.getElementById('downloadBtn');

@@ -48,18 +48,26 @@ def process_application(
     # 1. Parse raw inputs (both files and text can be provided together)
     names = []
     ai_errors = []
+    recognition_issues = []
+    ai_candidates = []
     if input_files_list:
         for fpath in input_files_list:
             if not os.path.exists(fpath):
                 continue
             names.append(os.path.basename(fpath))
             parsed = doc_reader.parse_incoming_application(fpath, use_ai=use_ai, openai_api_key=openai_api_key)
+            recognition_issues.extend(dict(issue, source=os.path.basename(fpath)) for issue in parsed.get('recognition_issues', []))
+            ai_candidates.extend({'source': os.path.basename(fpath), 'student': candidate} for candidate in parsed.get('ai_candidates', []))
             if parsed.get('engine'):
                 engines_used.add(parsed['engine'])
             if parsed.get('ai_error'):
                 ai_errors.append(f"{os.path.basename(fpath)}: {parsed['ai_error']}")
             if not detected_title and parsed.get('title'):
                 detected_title = parsed.get('title')
+            for issue in parsed.get('recognition_issues', []):
+                row_number = issue.get('row')
+                if row_number and row_number <= len(parsed.get('students', [])):
+                    parsed['students'][row_number-1].setdefault('recognition_warnings', []).append(issue)
             raw_students.extend(parsed.get('students', []))
         input_source_name = ", ".join(names) if names else "Файлы"
 
@@ -144,7 +152,7 @@ def process_application(
                     pass
     
     if not raw_students:
-        return {'success': False, 'error': 'Слушатели не распознаны. Требуется уточнение или более читаемый документ.'}
+        return {'success': False, 'error': 'Слушатели не распознаны. Требуется уточнение или более читаемый документ.', 'audit': {'recognition_issues': recognition_issues, 'ai_candidates': ai_candidates, 'ai_errors': ai_errors}}
 
     base_name = os.path.splitext(input_source_name.split(',')[0])[0].strip()
     if not output_file:
@@ -212,6 +220,13 @@ def process_application(
             fio_res['has_yellow_flag'] = True
             fio_res['nom_warning'] = "; ".join(fio_res['corrections'])
         
+        if raw_s.get('preserve_identity') and fio_res['nom_fio'] != fio_nom_raw:
+            fio_res['nom_fio'] = fio_nom_raw
+            fio_res.setdefault('yellow_columns', []).append('nom_fio')
+            fio_res['nom_warning'] = 'ФИО сохранено как распознано. Автоматическая правка отключена; сверьте с оригиналом.'
+        if raw_s.get('preserve_identity') and fio_dat_raw:
+            fio_res['dat_fio'] = fio_dat_raw
+
         # SNILS validation
         snils_formatted, snils_valid, snils_warn = linguistics.validate_and_format_snils(snils_raw)
         
@@ -228,6 +243,10 @@ def process_application(
         
         # Yellow flags compiler
         yellow_flags = {}
+        for issue in raw_s.get('recognition_warnings', []):
+            for field in issue.get('fields') or ['fio_nom']:
+                column = {'fio_nom': 'nom_fio', 'fio_dat': 'dat_fio'}.get(field, field)
+                yellow_flags[column] = issue['reason']
         for col in fio_res.get('yellow_columns', []):
             if col == 'nom_fio':
                 yellow_flags['nom_fio'] = fio_res.get('nom_warning') or "Подозрительные символы или опечатка в ФИО"
@@ -364,6 +383,9 @@ def process_application(
                 'message': issue['message']
             })
             
+    for issue in recognition_issues:
+        all_warnings.append({'student': f"{issue['source']}: строка {issue.get('row') or 'не определена'}", 'field': 'recognition', 'reason': issue['reason']})
+
     # Record any AI errors to audit warnings
     if ai_errors:
         for a_err in ai_errors:
@@ -392,7 +414,7 @@ def process_application(
     
     return {
         "success": True,
-        "requires_review": any(p.get("schedule_warning") or not p.get("is_canonical") for p in grouped_programs.values()),
+        "requires_review": bool(all_warnings or recognition_issues or ai_errors) or any(p.get("schedule_warning") or not p.get("is_canonical") for p in grouped_programs.values()),
         "catalog_version": "2026-09-23",
         "input_source": input_source_name,
         "output_file": primary_output,
@@ -414,6 +436,8 @@ def process_application(
             "warnings": all_warnings,
             "rule_violations": rule_violations,
             "document_issues": document_issues,
+            "recognition_issues": recognition_issues,
+            "ai_candidates": ai_candidates,
             "ai_errors": ai_errors
         }
     }
