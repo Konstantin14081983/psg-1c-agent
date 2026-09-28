@@ -2343,7 +2343,6 @@
         return;
       }
 
-      renderScheduleDetails(data);
       currentProcessedData = data;
       currentOutputFilename = data.output_filename;
       document.getElementById('initialPlaceholder').style.display = 'none';
@@ -2661,17 +2660,6 @@
         const remove = document.createElement('button'); remove.type='button'; remove.textContent='Убрать'; remove.className='preset-chip';
         remove.addEventListener('click', () => { selectedCatalog.delete(p.id); delete catalogHours[p.id]; renderCatalogSelection(); document.getElementById('overrideProgram').value=Array.from(selectedCatalog.values()).map(x=>x.name).join('; '); });
         row.append(remove); target.append(row);
-      });
-    }
-    function renderScheduleDetails(data) {
-      let target = document.getElementById('scheduleDetails');
-      if (!target) { target = document.createElement('div'); target.id='scheduleDetails'; document.getElementById('resultsContent').prepend(target); }
-      target.replaceChildren();
-      if (data.requires_review) { const notice = document.createElement('strong'); notice.textContent='Черновик: перед использованием уточните программы или сроки, отмеченные ниже.'; target.append(notice); }
-      Object.entries(data.grouped_data || {}).forEach(([name,p]) => {
-        const row = document.createElement('p');
-        row.textContent = `${name}: ${p.hours || '?'} ч, ${p.days || '?'} рабочих дн. Источник: ${p.source || 'требуется уточнение'}. ${p.schedule_warning || p.warning || ''}`;
-        target.append(row);
       });
     }
 
