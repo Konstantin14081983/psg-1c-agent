@@ -18,6 +18,7 @@ import shutil
 import base64
 import datetime
 import time
+import uuid
 import asyncio
 from typing import Optional, List, Dict, Any
 
@@ -28,6 +29,8 @@ from starlette.background import BackgroundTask
 import uvicorn
 
 import psg_agent
+
+RECOGNITION_SESSIONS = {}
 import document_vision
 import doc_reader
 
@@ -185,6 +188,8 @@ async def process_api(
     position: Optional[str] = Form(None),
     date_role: str = Form("auto"),
     hours_overrides: str = Form("{}"),
+    program_replacements: str = Form("{}"),
+    recognition_token: Optional[str] = Form(None),
     has_diploma: Optional[bool] = Form(False),
     has_photo: Optional[bool] = Form(False),
     has_certificate: Optional[bool] = Form(False),
@@ -193,6 +198,11 @@ async def process_api(
 ):
     import json
     try:
+        parsed_replacements = json.loads(program_replacements)
+        from training_catalog import catalog
+        offered_ids = {r['id'] for r in catalog()['programs'] if r['status'] == 'offered'}
+        if not isinstance(parsed_replacements, dict) or any(not isinstance(k, str) or not isinstance(v, str) or v not in offered_ids for k, v in parsed_replacements.items()):
+            raise ValueError()
         parsed_hours = json.loads(hours_overrides)
         if not isinstance(parsed_hours, dict) or date_role not in ('auto', 'start', 'end'):
             raise ValueError()
@@ -200,10 +210,20 @@ async def process_api(
             raise ValueError()
     except (ValueError, TypeError):
         raise HTTPException(status_code=422, detail='Некорректные параметры сроков или часов')
+    now = time.time()
+    for token, entry in list(RECOGNITION_SESSIONS.items()):
+        if now - entry['time'] > 1800:
+            RECOGNITION_SESSIONS.pop(token, None)
+    recognized = None
+    if recognition_token:
+        entry = RECOGNITION_SESSIONS.get(recognition_token)
+        if entry is None:
+            raise HTTPException(status_code=410, detail='Сессия распознавания истекла. Проанализируйте файл заново.')
+        recognized = entry['data']
     saved_file_paths = []
     
     try:
-        if files:
+        if files and recognized is None:
             for file in files:
                 if file and file.filename:
                     temp_path = os.path.join("uploads", file.filename)
@@ -215,6 +235,7 @@ async def process_api(
             "category": category if category else None,
             "date_role": date_role,
             "hours_overrides": parsed_hours,
+            "program_replacements": parsed_replacements,
             "program": program if program else None,
             "study_dates": study_dates if study_dates else None,
             "position": position if position else None,
@@ -230,12 +251,20 @@ async def process_api(
         result = psg_agent.process_application(
             input_file=saved_file_paths if saved_file_paths else None,
             raw_text=raw_text if raw_text else None,
-            output_file=None,
+            output_file=os.path.join(BASE_DIR, "output_1c", f"Заявка_1С_{uuid.uuid4().hex}.docx") if recognized else None,
             manual_overrides=manual_overrides,
             use_ai=is_ai_enabled,
-            openai_api_key=openai_api_key if openai_api_key else None
+            openai_api_key=openai_api_key if openai_api_key else None,
+            recognized_input=recognized
         )
 
+        snapshot = result.pop('_recognized_input', None)
+        if snapshot is not None:
+            token = recognition_token or uuid.uuid4().hex
+            if len(RECOGNITION_SESSIONS) >= 100 and token not in RECOGNITION_SESSIONS:
+                RECOGNITION_SESSIONS.pop(min(RECOGNITION_SESSIONS, key=lambda k: RECOGNITION_SESSIONS[k]['time']))
+            RECOGNITION_SESSIONS[token] = {'time': now, 'data': snapshot}
+            result['recognition_token'] = token
         if result.get("success"):
             if result.get("output_file"):
                 dest_out = os.path.join(BASE_DIR, "output_1c", result["output_filename"])

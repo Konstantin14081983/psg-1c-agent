@@ -1328,6 +1328,28 @@
         scroll-behavior: auto !important;
       }
     }
+
+    #manualPanel { position:fixed; inset:0 0 0 auto; margin:0; width:min(1120px,94vw); height:100dvh; max-height:100dvh; max-width:100vw; padding:0; border:0; background:var(--bg-main,#f8fafc); color:var(--text-primary); box-shadow:-12px 0 40px #0f172a24; }
+    #manualPanel[open] {display:flex;flex-direction:column;}
+    #manualPanel .preset-chip {padding:9px 12px;font:inherit;font-size:.8rem;border-radius:6px;background:var(--bg-card,#fff);cursor:pointer;}
+    #manualPanel .manual-head button {min-width:40px;min-height:40px;}
+    #manualPanel button:disabled {opacity:.5;cursor:not-allowed;}
+    #manualPanel :focus-visible {outline:2px solid var(--psg-red);outline-offset:3px;}
+    #manualPanel::backdrop {background:#0f172a66;}
+    .manual-head,.manual-footer {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 26px;background:var(--bg-card,#fff);flex-shrink:0;}
+    .manual-head {border-bottom:1px solid var(--border-subtle);}.manual-head h2 {margin:0;font-size:1.3rem;}.manual-head p,.manual-muted {color:var(--text-secondary,#64748b);font-size:.82rem;line-height:1.55;margin:8px 0;}
+    .manual-body {display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);gap:20px;padding:24px;overflow:auto;flex:1;align-items:start;}
+    .manual-section {padding:20px;background:var(--bg-card,#fff);border:1px solid var(--border-subtle);border-radius:var(--radius-md,12px);min-width:0;}
+    .manual-section h3 {display:flex;align-items:center;gap:9px;margin:0 0 18px;font-size:1rem;}.manual-section h3 svg {width:19px;height:19px;}.manual-section .form-label {margin-top:12px;}.manual-side {display:grid;gap:18px;}
+    .manual-question {border:1px solid var(--amber-primary,#d99a28);border-radius:var(--radius-sm,8px);padding:15px;margin:14px 0;background:var(--amber-subtle,#fffaf0);overflow-wrap:anywhere;}
+    .manual-question.confirmed {border-color:var(--emerald-border,#a7d9c7);background:var(--emerald-subtle,#f0fdf4);}
+    .manual-question summary {cursor:pointer;font-weight:600;line-height:1.5;}.manual-question small {display:block;margin:6px 0;color:var(--text-secondary,#64748b);}
+    .manual-choice {display:flex;align-items:flex-start;gap:10px;padding:11px;margin:7px 0;background:var(--bg-card,#fff);border:1px solid var(--border-subtle);border-radius:6px;font-size:.84rem;line-height:1.5;cursor:pointer;}.manual-choice:has(input:checked) {border-color:var(--psg-red);}.manual-choice input {margin-top:4px;accent-color:var(--psg-red);flex-shrink:0;}
+    .manual-choice span {flex:1;}.manual-choice em {font-style:normal;white-space:nowrap;font-size:.76rem;}.manual-global {border-top:1px solid var(--border-subtle);margin-top:20px;padding-top:16px;}.manual-global summary {cursor:pointer;font-weight:600;font-size:.88rem;}
+    .manual-footer {border-top:1px solid var(--border-subtle);font-size:.84rem;}.manual-footer>div {display:flex;gap:10px;}.manual-footer .btn {width:auto;}.manual-badge:not(:empty) {background:var(--amber-subtle,#fff3ce);padding:3px 8px;border-radius:12px;font-size:.75rem;}
+    #programReviewAction {margin:12px 0;}.manual-question button {margin-top:8px;}.manual-question .btn {padding:10px 14px;width:auto;}
+    @media(max-width:760px){#manualPanel{width:100vw;}.manual-body{grid-template-columns:1fr;padding:14px;}.manual-head,.manual-footer{padding:16px;}.manual-footer{flex-wrap:wrap;}.manual-footer>div{width:100%;}.manual-footer .btn{flex:1;}}
+
   </style>
 </head>
 <body>
@@ -1451,89 +1473,9 @@
 
           <hr style="margin: 1.25rem 0; border: none; border-top: 1px solid var(--border-subtle);">
 
-          <!-- Manual Overrides for Manager (Collapsible) -->
-          <div class="form-group" style="margin-bottom: 0.5rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-              <button type="button" class="accordion-toggle-btn open" id="accordionToggleBtn" onclick="toggleManualAccordion()">
-                <div class="accordion-title">
-                  <i data-lucide="sliders-horizontal"></i>
-                  <span>Ручные параметры (опционально)</span>
-                  <span id="activeOverridesChip" style="display: none; margin-left: 6px; font-size: 0.68rem; padding: 1px 6px; border-radius: 9999px; background: var(--emerald-subtle); color: var(--emerald-primary); border: 1px solid var(--emerald-border);">Настроено</span>
-                </div>
-                <i data-lucide="chevron-down" class="accordion-arrow"></i>
-              </button>
-              <button type="button" class="btn-clear-params" id="clearManualParams" title="Очистить все введенные ручные параметры">
-                <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
-                <span>Очистить параметры</span>
-              </button>
-            </div>
-
-            <div class="accordion-content open" id="accordionContent">
-              <div class="form-group">
-                <label class="form-label" for="overrideCategory">Вид обучения:</label>
-                <select class="form-select" id="overrideCategory" onchange="handleCategoryChange(this.value)">
-                  <option value="">Автоопределение по названию программы</option>
-                  <option value="ОТ (Охрана труда)">Охрана труда (А, Б, В, СИЗ, ПП) — строго последовательно</option>
-                  <option value="Рабочие профессии">Рабочие профессии (120-280 ч, окончание <= 3 дней назад)</option>
-                  <option value="ПК / ДПП">ПК / ДПП — часы по справочнику</option>
-                  <option value="Высота и ОЗП">Высота и ОЗП (24 ч, группы 1, 2, 3 без пересечения)</option>
-                  <option value="Допуски и проверка знаний">Допуски и ежегодная проверка знаний (свободные даты)</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label" for="overrideProgram">Программы обучения (можно выбрать несколько или ввести свои):</label>
-                <label class="form-label" for="catalogSearch">Поиск в справочнике центра</label>
-                <input class="form-input" id="catalogSearch" placeholder="Название программы или профессии" autocomplete="off">
-                <div id="catalogResults" role="list" aria-live="polite" style="max-height:220px;overflow:auto"></div>
-                <div id="selectedCatalogPrograms" aria-live="polite"></div>
-                <small>Выбранные программы заменят программы из заявки. Для свободного текста разделяйте программы точкой с запятой.</small>
-                <input type="text" class="form-input" id="overrideProgram" list="programList" placeholder="Укажите программу или несколько через точку с запятой ';'">
-                <datalist id="programList"></datalist>
-              </div>
-
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; align-items: start; margin-bottom: 0.5rem;">
-                <div class="form-group" style="margin-bottom: 0;">
-                  <div class="form-label" style="height: 20px; display: flex; align-items: center; justify-content: space-between;">
-                    <span>Сроки обучения:</span>
-                    <span style="color: var(--psg-red); font-size: 0.72rem; cursor: pointer; text-decoration: underline;" onclick="autoFillDatesForCategory()">⚡ Авто-заполнение</span>
-                  </div>
-                  <input type="text" class="form-input" id="overrideDates" placeholder="ДД.ММ.ГГГГ или интервал">
-                  <label class="form-label" for="dateRole" style="margin-top:8px">Если указана одна дата:</label>
-                  <select id="dateRole" class="form-input"><option value="auto">Уточнить значение даты</option><option value="start">Начало обучения</option><option value="end">Окончание обучения</option></select>
-                </div>
-                
-                <div class="form-group" style="margin-bottom: 0;">
-                  <div class="form-label" style="height: 20px; display: flex; align-items: center;">
-                    <span>Должность по умолчанию:</span>
-                  </div>
-                  <input type="text" class="form-input" id="overridePosition" placeholder="Например: Подсобный рабочий">
-                </div>
-              </div>
-
-              <!-- Date preset buttons strictly horizontal one after another -->
-              <div class="form-group" style="margin-bottom: 1rem;">
-                <button type="button" class="preset-chip" style="padding:8px 12px;margin-bottom:8px" onclick="setDatePreset()">Начать сегодня</button>
-                <small>Сроки рассчитываются по часам программы и производственному календарю РФ. Высота и ОЗП — последовательно.</small>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Наличие подтверждающих документов:</label>
-                <div class="checkbox-group">
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="docDiploma"> Скан диплома об образовании (обязателен для ПК/ДПП)
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="docPhoto"> Фото 3х4 (обязательно для рабочих профессий и высоты)
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="docCertificate"> Скан / номер удостоверения (для ежегодной проверки)
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-
+          <button type="button" class="accordion-toggle-btn" id="accordionToggleBtn" onclick="openManualPanel()" style="width:100%;margin:1rem 0">
+            <i data-lucide="sliders-horizontal"></i><span>Ручные параметры</span><span id="manualCount" class="manual-badge"></span><span id="activeOverridesChip" style="display:none">Настроено</span><i data-lucide="chevron-right"></i>
+          </button>
           <!-- Submit Button -->
           <button type="submit" class="btn btn-red" id="submitBtn">
             <span class="spinner" id="btnSpinner"></span>
@@ -1696,6 +1638,23 @@
     <div style="margin-top: 0.25rem; font-size: 0.7rem; color: var(--text-faint);">Расчёт по справочнику центра и производственному календарю РФ</div>
   </footer>
 
+
+  <dialog id="manualPanel" aria-labelledby="manualTitle">
+    <header class="manual-head"><div><h2 id="manualTitle">Ручные параметры</h2><p>Уточните программы и задайте сроки обучения</p></div><button type="button" class="preset-chip" aria-label="Закрыть параметры" onclick="closeManualPanel()">✕</button></header>
+    <div class="manual-body">
+      <section class="manual-section manual-programs"><h3><i data-lucide="book-open"></i>Программы обучения</h3><div id="programQuestions" aria-live="polite"><p class="manual-muted">Сначала проанализируйте заявку. Здесь появятся программы, требующие уточнения.</p></div>
+      <details class="manual-global"><summary>Задать программы для всей заявки</summary><p class="manual-muted">Эти программы заменят все программы у всех слушателей. Для отдельных спорных названий используйте карточки выше.</p>
+      <label class="form-label" for="catalogSearch">Поиск по каталогу центра</label><input class="form-input" id="catalogSearch" placeholder="Название программы или профессии" autocomplete="off"><div id="catalogResults" role="list" aria-live="polite" style="max-height:220px;overflow:auto"></div><div id="selectedCatalogPrograms"></div>
+      <label class="form-label" for="overrideProgram">Выбранные программы</label><input class="form-input" id="overrideProgram" placeholder="Несколько программ — через точку с запятой" oninput="updatePanelFooter()"><datalist id="programList"></datalist>
+      <label class="form-label" for="overrideCategory">Вид обучения</label><select class="form-select" id="overrideCategory"><option value="">Определить по программе</option><option>ОТ (Охрана труда)</option><option>Рабочие профессии</option><option>ПК / ДПП</option><option>Высота и ОЗП</option><option>Допуски и проверка знаний</option></select></details></section>
+      <div class="manual-side">
+        <section class="manual-section"><h3><i data-lucide="calendar-days"></i>Сроки обучения</h3><label class="form-label" for="dateRole">Рассчитать сроки</label><select class="form-select" id="dateRole" onchange="updateDateHint()"><option value="start">От даты начала</option><option value="end">До даты окончания</option><option value="auto">В заданном интервале</option></select><label class="form-label" id="dateInputLabel" for="overrideDates">Начало обучения</label><input class="form-input" id="overrideDates" placeholder="ДД.ММ.ГГГГ"><button type="button" class="preset-chip" onclick="setDatePreset();updateDateHint()" style="margin-top:10px">Начать сегодня</button><p class="manual-muted">Окончание рассчитывается по часам выбранных программ. Рабочие дни — по календарю РФ. Несколько программ идут последовательно.</p></section>
+        <section class="manual-section"><h3><i data-lucide="user"></i>Данные по умолчанию</h3><label class="form-label" for="overridePosition">Должность</label><input class="form-input" id="overridePosition" placeholder="Например, монтажник"><p class="manual-muted">Только для строк, где должность не указана.</p></section>
+        <section class="manual-section"><h3><i data-lucide="files"></i>Документы</h3><p class="manual-muted">Отметьте полученные документы</p><div class="checkbox-group"><label class="checkbox-label"><input type="checkbox" id="docDiploma">Диплом об образовании</label><label class="checkbox-label"><input type="checkbox" id="docPhoto">Фото 3×4</label><label class="checkbox-label"><input type="checkbox" id="docCertificate">Удостоверение</label></div></section>
+      </div>
+    </div>
+    <footer class="manual-footer"><span id="manualStatus" role="status">Параметры необязательны</span><div><button type="button" class="preset-chip" id="clearManualParams">Сбросить параметры</button><button type="button" class="btn btn-red" id="applyManual" onclick="applyManualPanel()">Сохранить параметры</button></div></footer>
+  </dialog>
   <script>
     let activeTab = 'file';
     let selectedFiles = [];
@@ -1819,24 +1778,7 @@
     }
 
     // Accordion Toggle for Manual Overrides
-    function toggleManualAccordion() {
-      const btn = document.getElementById('accordionToggleBtn');
-      const content = document.getElementById('accordionContent');
-      const isOpen = content.classList.contains('open');
-      
-      if (isOpen) {
-        content.classList.remove('open');
-        btn.classList.remove('open');
-      } else {
-        content.classList.add('open');
-        btn.classList.add('open');
-        gsap.fromTo(content, 
-          { opacity: 0, height: 0 }, 
-          { opacity: 1, height: 'auto', duration: 0.3, ease: 'power2.out' }
-        );
-      }
-      refreshIcons();
-    }
+    function toggleManualAccordion() { openManualPanel(); }
 
     // Dropzone logic with Drag Counter
     const dropzone = document.getElementById('dropzone');
@@ -1981,8 +1923,9 @@
 
     let lastResetManualParamsTime = 0;
     function resetManualParams(e) {
+      programReplacements = {}; renderProgramQuestions(panelQuestions.map(q => ({...q, selected_id:null})));
       selectedCatalog.clear(); Object.keys(catalogHours).forEach(k => delete catalogHours[k]);
-      renderCatalogSelection(); document.getElementById('dateRole').value = 'auto';
+      renderCatalogSelection(); document.getElementById('dateRole').value = 'start'; updateDateHint();
       if (e && e.preventDefault) e.preventDefault();
       const now = Date.now();
       if (now - lastResetManualParamsTime < 600) {
@@ -2205,15 +2148,17 @@
     }
 
     // Process Form Submit
-    async function handleFormSubmit(e) {
+    async function handleFormSubmit(e, recalculate = false) {
       e.preventDefault();
       
       const rawText = document.getElementById('rawTextInput').value.trim();
-      if (activeTab === 'file' && selectedFiles.length === 0) {
+      const requestSource = sourceSignature();
+      if (!recalculate) { programReplacements = {}; recognitionToken = null; }
+      if (!recalculate && activeTab === 'file' && selectedFiles.length === 0) {
         toast.warning('Пожалуйста, выберите хотя бы один файл заявки для обработки');
         return;
       }
-      if (activeTab === 'text' && !rawText) {
+      if (!recalculate && activeTab === 'text' && !rawText) {
         toast.warning('Пожалуйста, вставьте текст входящей заявки');
         return;
       }
@@ -2256,13 +2201,17 @@
       }, 1400);
 
       const formData = new FormData();
-      if (activeTab === 'file') {
+      if (recalculate && recognitionToken) {
+        formData.append('recognition_token', recognitionToken);
+      } else if (activeTab === 'file') {
         for (let i = 0; i < selectedFiles.length; i++) {
           formData.append('files', selectedFiles[i]);
         }
       } else {
         formData.append('raw_text', rawText);
       }
+
+      formData.append('program_replacements', JSON.stringify(recalculate ? programReplacements : {}));
 
       // Append Overrides
       formData.append('category', document.getElementById('overrideCategory').value);
@@ -2319,7 +2268,9 @@
 
         const data = await response.json();
         stepperProgress.style.width = '100%';
+        if (data.success) recognitionSource = requestSource;
         renderResults(data);
+        if (data.success) closeManualPanel();
       } catch (err) {
         toast.error('Ошибка при обработке заявки: ' + err.message);
       } finally {
@@ -2343,6 +2294,8 @@
         return;
       }
 
+      recognitionToken = data.recognition_token;
+      renderProgramQuestions(data.program_questions || []);
       currentProcessedData = data;
       currentOutputFilename = data.output_filename;
       document.getElementById('initialPlaceholder').style.display = 'none';
@@ -2471,6 +2424,13 @@
           toast.success('Скачивание файла Excel (.xlsx) начато');
         };
       }
+
+      const blocked = Object.values(data.grouped_data || {}).some(p => !p.is_canonical || !p.hours || p.students.some(s => !s.study_dates));
+      [downloadBtn, downloadXlsxBtn].filter(Boolean).forEach(link => {
+        link.setAttribute('aria-disabled', String(blocked)); link.style.opacity = blocked ? '.5' : '';
+        link.onclick = event => { if (blocked) {event.preventDefault(); toast.warning('Уточните программы и сроки перед скачиванием.'); openManualPanel();} };
+        link.title = blocked ? 'Уточните программы и сроки' : '';
+      });
 
       // Render 1C Preview Table with current filters
       render1CTable(data);
@@ -2614,6 +2574,106 @@
       }
     });
 
+    let recognitionToken = null;
+    let recognitionSource = '';
+    function sourceSignature() { return JSON.stringify([activeTab, document.getElementById('rawTextInput').value, selectedFiles.map(f => [f.name,f.size,f.lastModified])]); }
+    let panelQuestions = [];
+    let programReplacements = {};
+    let panelOpener;
+    function openManualPanel() {
+      panelOpener = document.activeElement;
+      document.getElementById('manualPanel').showModal();
+      document.body.style.overflow = 'hidden'; updatePanelFooter(); refreshIcons();
+    }
+    function closeManualPanel() { document.getElementById('manualPanel').close(); }
+    document.getElementById('manualPanel').addEventListener('close', () => { document.body.style.overflow = ''; panelOpener?.focus(); });
+    function updateDateHint() {
+      const role = document.getElementById('dateRole').value;
+      document.getElementById('dateInputLabel').textContent = role === 'start' ? 'Начало обучения' : role === 'end' ? 'Окончание обучения' : 'Начало и окончание';
+      document.getElementById('overrideDates').placeholder = role === 'auto' ? 'ДД.ММ.ГГГГ — ДД.ММ.ГГГГ' : 'ДД.ММ.ГГГГ';
+    }
+    function updatePanelFooter() {
+      const remaining = panelQuestions.filter(q => !programReplacements[q.name]).length;
+      const global = document.getElementById('overrideProgram').value.trim();
+      document.getElementById('manualCount').textContent = remaining ? remaining + ' уточнения' : '';
+      document.getElementById('manualStatus').textContent = global ? 'Программы будут заменены у всех слушателей' : remaining ? 'Осталось уточнить программ: ' + remaining : recognitionToken ? 'Можно применить параметры и пересчитать сроки' : 'Параметры применятся при обработке заявки';
+      const btn = document.getElementById('applyManual');
+      btn.textContent = recognitionToken ? 'Применить и пересчитать' : 'Сохранить параметры';
+      btn.disabled = Boolean(recognitionToken && remaining && !global);
+    }
+    async function applyManualPanel() {
+      updateActiveOverridesIndicator();
+      if (!recognitionToken) { closeManualPanel(); return; }
+      if (recognitionSource !== sourceSignature()) { toast.warning('Исходные данные изменились. Закройте параметры и проанализируйте заявку заново.'); return; }
+      const button = document.getElementById('applyManual'); button.disabled = true;
+      try { await handleFormSubmit({preventDefault() {}}, true); } finally { updatePanelFooter(); }
+    }
+    function shortProgramName(p) {
+      const name = p.name;
+      if (/на высоте без применения/.test(name)) return 'Высота без средств подмащивания · ' + (name.match(/[123] группа/) || ['уточнить группу'])[0];
+      if (/на высоте с применением/.test(name)) return 'Высота со средствами подмащивания';
+      if (/^9\s*[–—-].*на высоте/.test(name)) return 'Безопасные методы работ на высоте';
+      return name.replace(/^\d+\s*[–—-]\s*/, '');
+    }
+    function renderProgramQuestions(questions) {
+      panelQuestions = questions;
+      const target = document.getElementById('programQuestions'); target.replaceChildren();
+      if (!questions.length) { const p = document.createElement('p'); p.className = 'manual-muted'; p.textContent = recognitionToken ? 'Программы определены. При необходимости задайте общие параметры ниже.' : 'Проанализируйте заявку, чтобы увидеть спорные программы.'; target.append(p); }
+      questions.forEach((q, index) => {
+        if (q.selected_id) programReplacements[q.name] = q.selected_id;
+        const card = document.createElement('details'); card.className = 'manual-question'; card.open = index === 0 && !programReplacements[q.name];
+        const title = document.createElement('summary'); title.textContent = q.name; card.append(title);
+        const scope = document.createElement('small'); scope.textContent = 'Только для слушателей с этой записью: ' + q.count; card.append(scope);
+        const selectedInfo = document.createElement('p'); selectedInfo.className = 'manual-muted'; card.append(selectedInfo);
+        const search = document.createElement('input'); search.className = 'form-input'; search.placeholder = 'Найти другую программу в каталоге'; search.setAttribute('aria-label', 'Поиск замены для ' + q.name); card.append(search);
+        const choices = document.createElement('div'); card.append(choices);
+        const hoursEditor = document.createElement('div'); card.append(hoursEditor);
+        const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = 'btn btn-red'; confirm.textContent = 'Подтвердить замену'; confirm.disabled = true; card.append(confirm);
+        let selected = null, request = 0, timer;
+        function editHours(p) {
+          hoursEditor.replaceChildren();
+          if (p.hours.length === 1) return;
+          const label = document.createElement('label'); label.className = 'form-label'; label.textContent = 'Количество часов';
+          const input = document.createElement(p.hours.length ? 'select' : 'input'); input.className = 'form-input';
+          if (p.hours.length) p.hours.forEach(n => {const option=document.createElement('option'); option.value=n; option.textContent=n; input.append(option);});
+          else {input.type='number'; input.min=1; input.max=2000; input.placeholder='Уточните продолжительность';}
+          input.value=catalogHours[p.id] || p.hours[0] || '';
+          const update = () => {const value=Number(input.value); const valid=Number.isInteger(value)&&value>=1&&value<=2000; confirm.disabled=!valid; if(valid) catalogHours[p.id]=value; else delete catalogHours[p.id];};
+          input.addEventListener('change',update); update(); label.append(input); hoursEditor.append(label);
+        }
+        function showOptions(items) {
+          choices.replaceChildren(); hoursEditor.replaceChildren(); selected = null; confirm.disabled = true;
+          items.filter(p => p.status === 'offered').forEach(p => {
+            const label = document.createElement('label'); label.className = 'manual-choice';
+            const radio = document.createElement('input'); radio.type = 'radio'; radio.name = 'replacement-' + index; radio.value = p.id;
+            radio.checked = programReplacements[q.name] === p.id;
+            const text = document.createElement('span'); text.textContent = shortProgramName(p); label.title = p.name;
+            const hours = document.createElement('em'); hours.textContent = p.hours.length ? p.hours.join('/') + ' ч' : 'Уточнить часы';
+            radio.addEventListener('change', () => { selected = p; selectedInfo.textContent = 'Полное название: ' + p.name; confirm.disabled = false; editHours(p); });
+            label.append(radio, text, hours); choices.append(label);
+            if (radio.checked) { selected = p; selectedInfo.textContent = 'Полное название: ' + p.name; title.textContent = q.name + ' → ' + shortProgramName(p); editHours(p); }
+          });
+          if (!choices.children.length) choices.textContent = 'Нет подходящих вариантов. Измените поисковый запрос.';
+        }
+        search.addEventListener('input', () => { clearTimeout(timer); const ticket = ++request; timer = setTimeout(async () => {
+          try { const response = await fetch('/api/programs?q=' + encodeURIComponent(search.value)); if (!response.ok) throw Error(); const data = await response.json(); if (ticket === request) showOptions(data.programs); } catch (_) { if (ticket === request) choices.textContent = 'Не удалось загрузить каталог. Повторите поиск.'; }
+        }, 250); });
+        confirm.addEventListener('click', () => {
+          if (!selected) return; programReplacements[q.name] = selected.id;
+          selectedInfo.textContent = 'Полное название: ' + selected.name; title.textContent = q.name + ' → ' + shortProgramName(selected);
+          if (!q.candidates.some(p => p.id === selected.id)) q.candidates.push(selected);
+          card.classList.add('confirmed'); card.open = false; updatePanelFooter();
+        });
+        showOptions(q.candidates || []);
+        if (programReplacements[q.name]) card.classList.add('confirmed');
+        target.append(card);
+      });
+      updatePanelFooter();
+      let action = document.getElementById('programReviewAction');
+      if (!action) { action = document.createElement('button'); action.id = 'programReviewAction'; action.type = 'button'; action.className = 'preset-chip'; action.onclick = openManualPanel; document.getElementById('resultsContent').prepend(action); }
+      const unresolved = questions.filter(q => !programReplacements[q.name]).length; action.hidden = !questions.length; action.textContent = unresolved ? 'Уточнить программы: ' + unresolved : 'Изменить выбранные программы';
+    }
+
     const selectedCatalog = new Map();
     const catalogHours = {};
     let catalogRequest = 0;
@@ -2640,7 +2700,7 @@
           button.addEventListener('click', () => {
             selectedCatalog.set(p.id, p); renderCatalogSelection();
             document.getElementById('overrideProgram').value = Array.from(selectedCatalog.values()).map(x => x.name).join('; ');
-            updateActiveOverridesIndicator();
+            updateActiveOverridesIndicator(); updatePanelFooter();
           }); target.append(button);
         });
       } catch (_) { target.textContent = 'Справочник не загружен. Повторите поиск.'; }

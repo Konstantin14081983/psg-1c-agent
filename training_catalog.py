@@ -23,6 +23,23 @@ def unresolved(text, candidates=()):
 def select_source(source,group=None):
     return [r for r in catalog()['programs'] if r['source']==source and (group is None or r.get('group')==group)]
 
+
+def search_name(text):
+    # Only a leading list ordinal, never group/rank numbers inside a title.
+    return norm(re.sub(r'^\s*\d+\s*[–—-]\s*', '', str(text)))
+
+def suggest(text):
+    key = search_name(text)
+    offered = [r for r in catalog()['programs'] if r['status'] == 'offered']
+    topics = [('высот',), ('озп', 'замкнут'), ('электроустанов',), ('землян', 'земляных'), ('первой помощи', 'первая помощь', 'пп'), ('сиз', 'индивидуальной защиты')]
+    topic = next((words for words in topics if any(w in key for w in words)), None)
+    if topic:
+        offered = [r for r in offered if any(w in norm(r['name']) for w in topic)]
+    def score(r):
+        words = set(key.split()); target = set(search_name(r['name']).split())
+        return len(words & target) / max(1, len(words)) + SequenceMatcher(None, key, search_name(r['name'])).ratio()
+    return sorted(offered, key=score, reverse=True)[:8]
+
 def resolve(text):
     key=norm(text)
     key=re.sub(r'^охрана труда ([абв])$', r'от \1', key)
@@ -35,6 +52,11 @@ def resolve(text):
         # Same spelling with conflicting durations remains a choice.
         if len({(tuple(r['hours']),r['status'],r['category']) for r in exact})==1:return result(exact[0])
         return unresolved(text,exact)
+    cleaned_exact = [r for r in records if search_name(r['name']) == search_name(text)]
+    if len(cleaned_exact) == 1:
+        return result(cleaned_exact[0])
+    if len(cleaned_exact) > 1:
+        return unresolved(text, cleaned_exact)
     aliases={'а':4,'от а':4,'программа а':4,'б':5,'от б':5,'программа б':5,'в':6,'от в':6,'программа в':6,'сиз':7,'пп':8,'первая помощь':8}
     if key in aliases:return result(select_source(f'Охрана труда!B{aliases[key]}')[0])
     # Group must be explicit. Do not confuse the 8h OT-V work types with 24h group training.
@@ -60,7 +82,7 @@ def resolve(text):
     worker=re.sub(r'\s+(\d+)\s+разряда?$',r' \1 разряд',worker)
     candidates=[r for r in records if r['category']=='worker' and norm(r['name'])==worker]
     if len(candidates)==1:return result(candidates[0])
-    ranked=sorted(records,key=lambda r:SequenceMatcher(None,key,norm(r['name'])).ratio(),reverse=True)[:5] if key else []
+    ranked=suggest(text) if key else []
     missing=unresolved(text,ranked)
     occupations=[o for o in catalog()['occupations'] if norm(o['name'])==key]
     if occupations:

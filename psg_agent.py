@@ -6,6 +6,7 @@ Supports multi-file batches and intelligent contact cleaning.
 """
 
 import os
+import copy
 import sys
 import re
 import argparse
@@ -26,7 +27,8 @@ def process_application(
     output_file: Optional[str] = None,
     manual_overrides: Optional[Dict[str, Any]] = None,
     use_ai: bool = False,
-    openai_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None,
+    recognized_input: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Processes an incoming application file(s) or text and generates 1C Excel spreadsheet.
@@ -46,96 +48,109 @@ def process_application(
     input_source_name = "Заявка"
     
     # 1. Parse raw inputs (both files and text can be provided together)
-    names = []
-    ai_errors = []
-    recognition_issues = []
-    ai_candidates = []
-    if input_files_list:
-        for fpath in input_files_list:
-            if not os.path.exists(fpath):
-                continue
-            names.append(os.path.basename(fpath))
-            parsed = doc_reader.parse_incoming_application(fpath, use_ai=use_ai, openai_api_key=openai_api_key)
-            recognition_issues.extend(dict(issue, source=os.path.basename(fpath)) for issue in parsed.get('recognition_issues', []))
-            ai_candidates.extend({'source': os.path.basename(fpath), 'student': candidate} for candidate in parsed.get('ai_candidates', []))
-            if parsed.get('engine'):
-                engines_used.add(parsed['engine'])
-            if parsed.get('ai_error'):
-                ai_errors.append(f"{os.path.basename(fpath)}: {parsed['ai_error']}")
-            if not detected_title and parsed.get('title'):
-                detected_title = parsed.get('title')
-            for issue in parsed.get('recognition_issues', []):
-                row_number = issue.get('row')
-                if row_number and row_number <= len(parsed.get('students', [])):
-                    parsed['students'][row_number-1].setdefault('recognition_warnings', []).append(issue)
-            raw_students.extend(parsed.get('students', []))
-        input_source_name = ", ".join(names) if names else "Файлы"
+    if recognized_input is not None:
+        raw_students = copy.deepcopy(recognized_input['students'])
+        detected_title = recognized_input.get('title')
+        input_source_name = recognized_input.get('source', 'Заявка')
+        ai_errors = recognized_input.get('ai_errors', [])
+        recognition_issues = recognized_input.get('recognition_issues', [])
+        ai_candidates = recognized_input.get('ai_candidates', [])
+        engines_used = set(recognized_input.get('engines', []))
+    else:
+        names = []
+        ai_errors = []
+        recognition_issues = []
+        ai_candidates = []
+        if input_files_list:
+            for fpath in input_files_list:
+                if not os.path.exists(fpath):
+                    continue
+                names.append(os.path.basename(fpath))
+                parsed = doc_reader.parse_incoming_application(fpath, use_ai=use_ai, openai_api_key=openai_api_key)
+                recognition_issues.extend(dict(issue, source=os.path.basename(fpath)) for issue in parsed.get('recognition_issues', []))
+                ai_candidates.extend({'source': os.path.basename(fpath), 'student': candidate} for candidate in parsed.get('ai_candidates', []))
+                if parsed.get('engine'):
+                    engines_used.add(parsed['engine'])
+                if parsed.get('ai_error'):
+                    ai_errors.append(f"{os.path.basename(fpath)}: {parsed['ai_error']}")
+                if not detected_title and parsed.get('title'):
+                    detected_title = parsed.get('title')
+                for issue in parsed.get('recognition_issues', []):
+                    row_number = issue.get('row')
+                    if row_number and row_number <= len(parsed.get('students', [])):
+                        parsed['students'][row_number-1].setdefault('recognition_warnings', []).append(issue)
+                raw_students.extend(parsed.get('students', []))
+            input_source_name = ", ".join(names) if names else "Файлы"
 
-    if raw_text:
-        # Check if raw_text contains student rows or supplementary manager instructions
-        # If use_ai=True, attempt deep semantic extraction with OpenAI first
-        text_parsed_by_ai = False
-        if use_ai:
-            try:
-                import ai_vision
-                ai_text_res = ai_vision.analyze_text_message_with_ai(raw_text, api_key=openai_api_key)
-                if ai_text_res.get("success") and ai_text_res.get("students"):
-                    text_parsed_by_ai = True
-                    engines_used.add(ai_text_res.get("engine", "OpenAI (GPT-4o-mini)"))
-                    ai_studs = []
-                    for s in ai_text_res["students"]:
-                        ai_studs.append({
-                            "fio_nom": s.get("fio", ""),
-                            "position": s.get("position", ""),
-                            "birth_date": s.get("birth_date", ""),
-                            "gender": s.get("gender", ""),
-                            "snils": s.get("snils", ""),
-                            "study_dates": s.get("study_dates", ""),
-                            "contacts": s.get("contacts", ""),
-                            "program": s.get("program", "")
-                        })
-                    if raw_students:
-                        raw_students = doc_reader.reconcile_student_records(raw_students, ai_studs)
+        if raw_text:
+            # Check if raw_text contains student rows or supplementary manager instructions
+            # If use_ai=True, attempt deep semantic extraction with OpenAI first
+            text_parsed_by_ai = False
+            if use_ai:
+                try:
+                    import ai_vision
+                    ai_text_res = ai_vision.analyze_text_message_with_ai(raw_text, api_key=openai_api_key)
+                    if ai_text_res.get("success") and ai_text_res.get("students"):
+                        text_parsed_by_ai = True
+                        engines_used.add(ai_text_res.get("engine", "OpenAI (GPT-4o-mini)"))
+                        ai_studs = []
+                        for s in ai_text_res["students"]:
+                            ai_studs.append({
+                                "fio_nom": s.get("fio", ""),
+                                "position": s.get("position", ""),
+                                "birth_date": s.get("birth_date", ""),
+                                "gender": s.get("gender", ""),
+                                "snils": s.get("snils", ""),
+                                "study_dates": s.get("study_dates", ""),
+                                "contacts": s.get("contacts", ""),
+                                "program": s.get("program", "")
+                            })
+                        if raw_students:
+                            raw_students = doc_reader.reconcile_student_records(raw_students, ai_studs)
+                        else:
+                            raw_students.extend(ai_studs)
+                        c_params = ai_text_res.get("common_params", {})
+                        if c_params.get("position") and not manual_overrides.get("position"):
+                            manual_overrides["position"] = c_params["position"]
+                        if c_params.get("program") and not manual_overrides.get("program"):
+                            manual_overrides["program"] = c_params["program"]
+                        if c_params.get("study_dates") and not manual_overrides.get("study_dates"):
+                            manual_overrides["study_dates"] = c_params["study_dates"]
                     else:
-                        raw_students.extend(ai_studs)
-                    c_params = ai_text_res.get("common_params", {})
-                    if c_params.get("position") and not manual_overrides.get("position"):
-                        manual_overrides["position"] = c_params["position"]
-                    if c_params.get("program") and not manual_overrides.get("program"):
-                        manual_overrides["program"] = c_params["program"]
-                    if c_params.get("study_dates") and not manual_overrides.get("study_dates"):
-                        manual_overrides["study_dates"] = c_params["study_dates"]
-                else:
-                    if ai_text_res.get("error"):
-                        ai_errors.append(f"Текстовое сообщение: {ai_text_res['error']}")
-            except Exception as e:
-                ai_errors.append(f"Текстовое сообщение: {str(e)}")
+                        if ai_text_res.get("error"):
+                            ai_errors.append(f"Текстовое сообщение: {ai_text_res['error']}")
+                except Exception as e:
+                    ai_errors.append(f"Текстовое сообщение: {str(e)}")
 
-        if not text_parsed_by_ai:
-            parsed_raw = doc_reader.parse_raw_text_application(raw_text)
-            text_students = parsed_raw.get('students', [])
-            if text_students:
-                if not detected_title and parsed_raw.get('title'):
-                    detected_title = parsed_raw.get('title')
-                if raw_students:
-                    raw_students = doc_reader.reconcile_student_records(raw_students, text_students)
-                else:
-                    raw_students.extend(text_students)
-            if not input_files_list:
-                input_source_name = "Текстовое сообщение"
+            if not text_parsed_by_ai:
+                parsed_raw = doc_reader.parse_raw_text_application(raw_text)
+                text_students = parsed_raw.get('students', [])
+                if text_students:
+                    if not detected_title and parsed_raw.get('title'):
+                        detected_title = parsed_raw.get('title')
+                    if raw_students:
+                        raw_students = doc_reader.reconcile_student_records(raw_students, text_students)
+                    else:
+                        raw_students.extend(text_students)
+                if not input_files_list:
+                    input_source_name = "Текстовое сообщение"
                 
-        # Also check for supplementary manager instructions (position, program, dates)
-        supp = doc_reader.extract_supplementary_instructions(raw_text)
-        if supp.get('position') and not manual_overrides.get('position'):
-            manual_overrides['position'] = supp['position']
-        if supp.get('program') and not manual_overrides.get('program'):
-            manual_overrides['program'] = supp['program']
-        if supp.get('study_dates') and not manual_overrides.get('study_dates'):
-            manual_overrides['study_dates'] = supp['study_dates']
+            # Also check for supplementary manager instructions (position, program, dates)
+            supp = doc_reader.extract_supplementary_instructions(raw_text)
+            if supp.get('position') and not manual_overrides.get('position'):
+                manual_overrides['position'] = supp['position']
+            if supp.get('program') and not manual_overrides.get('program'):
+                manual_overrides['program'] = supp['program']
+            if supp.get('study_dates') and not manual_overrides.get('study_dates'):
+                manual_overrides['study_dates'] = supp['study_dates']
 
-    if not input_files_list and not raw_text:
+    if not input_files_list and not raw_text and recognized_input is None:
         raise ValueError("Необходимо указать input_file или raw_text")
         
+    snapshot = copy.deepcopy({'students': raw_students, 'title': detected_title, 'source': input_source_name, 'ai_errors': ai_errors, 'recognition_issues': recognition_issues, 'ai_candidates': ai_candidates, 'engines': list(engines_used)})
+    program_questions = {}
+    replacements = manual_overrides.get('program_replacements') or {}
+
     app_title = manual_overrides.get('application_title') or detected_title
     
     # Extract default application date from title if available
@@ -269,6 +284,23 @@ def process_application(
             
         # Program matching & expansion
         matched_progs = program_matcher.match_programs(prog_raw, position=pos_clean)
+        import training_catalog
+        resolved_programs = []
+        for matched in matched_progs:
+            original_name = matched['name']
+            if not matched.get('is_canonical'):
+                question = program_questions.setdefault(original_name, {'name': original_name, 'count': 0, 'candidates': matched.get('candidates', []), 'selected_id': replacements.get(original_name)})
+                question['count'] += 1
+                if replacements.get(original_name):
+                    replacement = training_catalog.resolve(replacements[original_name])
+                    if not replacement.get('is_canonical'):
+                        raise ValueError('Выбранная программа недоступна в каталоге')
+                    if not any(c['id'] == replacement['id'] for c in question['candidates']):
+                        question['candidates'].append({'id': replacement['id'], 'name': replacement['name'], 'hours': replacement['hours_options'], 'status': 'offered'})
+                    matched = dict(replacement, original_name=original_name)
+            if not any(p.get('id', p['name']) == matched.get('id', matched['name']) for p in resolved_programs):
+                resolved_programs.append(matched)
+        matched_progs = resolved_programs
         progs_with_dates = training_rules.assign_sequential_dates(matched_progs, dates_raw, date_role=date_role, hours_overrides=manual_overrides.get('hours_overrides'))
         
         student_key = fio_res['nom_fio']
@@ -286,6 +318,9 @@ def process_application(
             
             # Category and date auditing
             date_audit = training_rules.validate_dates_and_category(p_name, p_dates)
+            if prog.get('schedule_warning') and not p_dates:
+                date_audit['has_error'] = False
+                date_audit['warnings'] = []
             if date_audit['has_error']:
                 for dw in date_audit['warnings']:
                     rule_violations.append({
@@ -324,7 +359,7 @@ def process_application(
                 'study_dates': linguistics.clean_text(p_dates),
                 'contacts': contacts_clean,
                 'yellow_flags': prog_yellow_flags,
-                'recognition': {'program_input': prog_raw, 'date_input': dates_raw, 'date_role': date_role, 'program_source': prog.get('source'), 'hours': prog.get('hours'), 'days': prog.get('days'), 'manual_program': bool(manual_overrides.get('program') or manual_overrides.get('programs')), 'manual_dates': bool(manual_overrides.get('study_dates'))}
+                'recognition': {'program_input': prog_raw, 'date_input': dates_raw, 'date_role': date_role, 'program_source': prog.get('source'), 'program_id': prog.get('id'), 'replaced_from': prog.get('original_name'), 'hours': prog.get('hours'), 'days': prog.get('days'), 'manual_program': bool(manual_overrides.get('program') or manual_overrides.get('programs')), 'manual_dates': bool(manual_overrides.get('study_dates'))}
             }
             
             student_enrollment_tracker[student_key].append({
@@ -415,6 +450,8 @@ def process_application(
     return {
         "success": True,
         "requires_review": bool(all_warnings or recognition_issues or ai_errors) or any(p.get("schedule_warning") or not p.get("is_canonical") for p in grouped_programs.values()),
+        "_recognized_input": snapshot,
+        "program_questions": list(program_questions.values()),
         "catalog_version": "2026-09-23",
         "input_source": input_source_name,
         "output_file": primary_output,

@@ -27,11 +27,11 @@ def test_homepage():
     assert "«ПСГ»" in response.text
     assert "data:image/png;base64," in response.text
     assert "Добавить еще файл" in response.text
-    assert "Авто-заполнение" in response.text
+    assert "Начать сегодня" in response.text
     # Item 1: Must NOT contain 'Заливка программ — бирюзовая'
     assert "Заливка программ — бирюзовая" not in response.text, "Text 'Заливка программ — бирюзовая' should be removed"
     # Item 2: Must contain clear manual params button
-    assert "Очистить параметры" in response.text
+    assert "Сбросить параметры" in response.text
     assert "clearManualParams" in response.text
     # Item 3: Must contain auto-mask for datesInput
     assert "datesInput" in response.text

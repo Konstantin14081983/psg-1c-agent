@@ -1,6 +1,6 @@
 {
-  "total": 76,
-  "passed": 74,
+  "total": 83,
+  "passed": 81,
   "failed": 0,
   "errors": 0,
   "skipped": 2,
@@ -309,6 +309,34 @@
     },
     {
       "test": "test_unmatched_ai_rows_remain_review_candidates (test_scan_recognition.ScanRecognition.test_unmatched_ai_rows_remain_review_candidates)",
+      "status": "passed"
+    },
+    {
+      "test": "test_api_snapshot_recalculation_and_validation (test_program_panel.ProgramPanel.test_api_snapshot_recalculation_and_validation)",
+      "status": "passed"
+    },
+    {
+      "test": "test_catalog_ordinals_and_hours (test_program_panel.ProgramPanel.test_catalog_ordinals_and_hours)",
+      "status": "passed"
+    },
+    {
+      "test": "test_height_suggestions_only_relevant_and_offered (test_program_panel.ProgramPanel.test_height_suggestions_only_relevant_and_offered)",
+      "status": "passed"
+    },
+    {
+      "test": "test_no_false_missing_dates_violation (test_program_panel.ProgramPanel.test_no_false_missing_dates_violation)",
+      "status": "passed"
+    },
+    {
+      "test": "test_replacement_can_be_changed_from_original (test_program_panel.ProgramPanel.test_replacement_can_be_changed_from_original)",
+      "status": "passed"
+    },
+    {
+      "test": "test_scoped_replacement_preserves_other_rows_and_source (test_program_panel.ProgramPanel.test_scoped_replacement_preserves_other_rows_and_source)",
+      "status": "passed"
+    },
+    {
+      "test": "test_selection_from_full_catalog_remains_visible (test_program_panel.ProgramPanel.test_selection_from_full_catalog_remains_visible)",
       "status": "passed"
     }
   ]
